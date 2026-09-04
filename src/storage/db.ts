@@ -1,7 +1,7 @@
 import type { AppState } from '../types'
 
-const DB_NAME='smart-workout-coach'; const STORE='kv'; const DB_VERSION=1; export const SCHEMA_VERSION=2
-const initialState:AppState={schemaVersion:SCHEMA_VERSION,sessions:[],metrics:[],demoMode:false}
+const DB_NAME='smart-workout-coach'; const STORE='kv'; const DB_VERSION=1; export const SCHEMA_VERSION=3
+const initialState:AppState={schemaVersion:SCHEMA_VERSION,sessions:[],activities:[],metrics:[],demoMode:false}
 
 function openDb():Promise<IDBDatabase>{
   return new Promise((resolve,reject)=>{
@@ -21,14 +21,19 @@ export function migrate(raw:any):AppState{
   if(v<2){
     next={...next,schemaVersion:2}
     if(next.profile){
+      next.profile={...next.profile,uiMode:next.profile.uiMode??'simple',secondaryGoals:Array.isArray(next.profile.secondaryGoals)?next.profile.secondaryGoals:[]}
+    }
+  }
+  if(v<3){
+    next={...next,schemaVersion:3,activities:Array.isArray(next.activities)?next.activities:[]}
+    if(next.profile){
       next.profile={
         ...next.profile,
-        uiMode:next.profile.uiMode??'simple',
-        secondaryGoals:Array.isArray(next.profile.secondaryGoals)?next.profile.secondaryGoals:[]
+        cardio:next.profile.cardio??{enabled:false,modes:[],sessionsPerWeek:2,minutes:20}
       }
     }
   }
-  return {...structuredClone(initialState),...next,schemaVersion:SCHEMA_VERSION}
+  return {...structuredClone(initialState),...next,activities:Array.isArray(next.activities)?next.activities:[],schemaVersion:SCHEMA_VERSION}
 }
 
 export async function loadState(){ return migrate(await get<AppState>('app')) }
@@ -37,7 +42,10 @@ export async function resetState(){ await saveState(structuredClone(initialState
 
 export function makeDemoState():AppState{
   const now=new Date(); const days=(n:number)=>new Date(now.getTime()-n*86400000).toISOString()
-  return {schemaVersion:SCHEMA_VERSION,demoMode:true,metrics:[{id:'m1',date:days(20),weightKg:78.4,waistCm:88},{id:'m2',date:days(2),weightKg:77.2,waistCm:86}],sessions:[
+  return {schemaVersion:SCHEMA_VERSION,demoMode:true,metrics:[{id:'m1',date:days(20),weightKg:78.4,waistCm:88},{id:'m2',date:days(2),weightKg:77.2,waistCm:86}],activities:[
+    {id:'a1',mode:'run',startedAt:days(5),completedAt:days(5),durationSeconds:1120,distanceKm:2.6,avgPaceSecPerKm:431,plannedMinutes:20},
+    {id:'a2',mode:'jump_rope',startedAt:days(2),completedAt:days(2),durationSeconds:600,jumpCount:760,plannedMinutes:10}
+  ],sessions:[
     {id:'d1',programDayKey:'demo',title:'Upper A',startedAt:days(7),completedAt:days(7),overallDifficulty:3,fatigue:2,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:6,completed:true},{reps:5,completed:true},{reps:5,completed:true}],feedback:'good'}]},
     {id:'d2',programDayKey:'demo',title:'Upper B',startedAt:days(3),completedAt:days(3),overallDifficulty:3,fatigue:3,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:7,completed:true},{reps:6,completed:true},{reps:6,completed:true}],feedback:'good'}]}
   ]}
