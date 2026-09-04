@@ -126,6 +126,26 @@ export interface TrainingProgram {
   days: ProgramDay[]
 }
 
+export interface WeekAvailability {
+  weekKey: string
+  busyDays: number[]
+}
+
+export interface WeekPlanSlot {
+  weekday: number
+  programDayKey: string
+  originalWeekday: number
+  moved: boolean
+  completed: boolean
+}
+
+export interface WeekPlan {
+  weekKey: string
+  busyDays: number[]
+  slots: WeekPlanSlot[]
+  unscheduled: string[]
+}
+
 export interface CompletedSet {
   reps?: number
   seconds?: number
@@ -186,6 +206,7 @@ export interface AppState {
   schemaVersion: number
   profile?: UserProfile
   program?: TrainingProgram
+  weekAvailability?: WeekAvailability
   sessions: WorkoutSession[]
   activities: ActivitySession[]
   metrics: BodyMetric[]
