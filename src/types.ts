@@ -3,6 +3,8 @@ export type Goal = 'fat_loss' | 'recomp' | 'hypertrophy' | 'strength' | 'definit
 export type Experience = 'new' | 'beginner' | 'intermediate' | 'advanced'
 export type DifficultyFeedback = 'too_easy' | 'good' | 'hard' | 'near_limit' | 'failed'
 export type RecoveryState = 'ready' | 'recovering' | 'fatigued'
+export type UIMode = 'simple' | 'advanced'
+export type SecondaryGoal = 'pullup_10' | 'pushup_30' | 'dip_20' | 'l_sit_20' | 'handstand' | 'pistol_squat'
 export type MovementPattern = 'horizontal_push' | 'vertical_push' | 'horizontal_pull' | 'vertical_pull' | 'squat' | 'hinge' | 'lunge' | 'core' | 'carry' | 'isolation' | 'mobility' | 'conditioning'
 
 export interface Exercise {
@@ -42,6 +44,8 @@ export interface UserProfile {
   trainingType: TrainingType
   goal: Goal
   skillGoal?: string
+  secondaryGoals?: SecondaryGoal[]
+  uiMode?: UIMode
   experience: Experience
   daysPerWeek: number
   trainingDays: number[]
@@ -76,6 +80,7 @@ export interface PlannedExercise {
   weightKg?: number
   note?: string
   progressionReason?: string
+  selectionReason?: string
 }
 
 export interface ProgramDay {
