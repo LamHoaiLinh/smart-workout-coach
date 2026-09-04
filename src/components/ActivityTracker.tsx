@@ -19,8 +19,8 @@ export default function ActivityTracker({plan,onSave,onClose}:{plan:CardioPlan;o
   const [jumps,setJumps]=useState(0)
   const [gps,setGps]=useState('')
   const startedAt=useRef('')
-  const watchId=useRef<number>()
-  const lastPoint=useRef<Point>()
+  const watchId=useRef<number|undefined>(undefined)
+  const lastPoint=useRef<Point|undefined>(undefined)
 
   useEffect(()=>{
     if(status!=='running') return
@@ -28,7 +28,11 @@ export default function ActivityTracker({plan,onSave,onClose}:{plan:CardioPlan;o
     return()=>window.clearInterval(t)
   },[status])
 
-  useEffect(()=>()=>{if(watchId.current!==undefined)navigator.geolocation?.clearWatch(watchId.current)},[])
+  const stopGps=()=>{
+    if(watchId.current!==undefined){navigator.geolocation?.clearWatch(watchId.current);watchId.current=undefined}
+    lastPoint.current=undefined
+  }
+  useEffect(()=>()=>stopGps(),[])
 
   const startGps=()=>{
     if(plan.mode==='jump_rope') return
@@ -45,15 +49,11 @@ export default function ActivityTracker({plan,onSave,onClose}:{plan:CardioPlan;o
     },err=>setGps(err.code===1?'Bạn chưa cho phép dùng vị trí.':'Chưa lấy được GPS. Thử ra nơi thoáng hơn.'),{enableHighAccuracy:true,maximumAge:2000,timeout:12000})
   }
 
-  const start=()=>{
-    if(!startedAt.current) startedAt.current=new Date().toISOString()
-    setStatus('running')
-    if(watchId.current===undefined) startGps()
-  }
-  const pause=()=>setStatus('paused')
-  const resume=()=>setStatus('running')
+  const start=()=>{if(!startedAt.current)startedAt.current=new Date().toISOString();setStatus('running');startGps()}
+  const pause=()=>{setStatus('paused');stopGps()}
+  const resume=()=>{setStatus('running');startGps()}
   const finish=()=>{
-    if(watchId.current!==undefined){navigator.geolocation?.clearWatch(watchId.current);watchId.current=undefined}
+    stopGps()
     const completedAt=new Date().toISOString()
     const pace=distance>=0.05?Math.round(seconds/distance):undefined
     onSave({id:uid(),mode:plan.mode,startedAt:startedAt.current||completedAt,completedAt,durationSeconds:seconds,distanceKm:plan.mode==='jump_rope'?undefined:Math.round(distance*1000)/1000,jumpCount:plan.mode==='jump_rope'?jumps:undefined,avgPaceSecPerKm:pace,plannedMinutes:plan.minutes})
