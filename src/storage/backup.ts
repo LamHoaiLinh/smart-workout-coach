@@ -1,15 +1,17 @@
 import type { AppState } from '../types'
-import { migrate, SCHEMA_VERSION } from './db'
+import { SCHEMA_VERSION } from './db'
 
 export function downloadBackup(state:AppState){
-  const payload={app:'Smart Workout Coach',exportedAt:new Date().toISOString(),schemaVersion:SCHEMA_VERSION,data:{...state,schemaVersion:SCHEMA_VERSION}}
+  const payload={app:'Smart Workout Coach V4',schemaVersion:SCHEMA_VERSION,exportedAt:new Date().toISOString(),data:state}
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})
-  const url=URL.createObjectURL(blob); const a=document.createElement('a')
-  a.href=url; a.download=`smart-workout-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url)
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a')
+  a.href=url;a.download=`smart-workout-v4-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url)
 }
+
 export async function parseBackup(file:File):Promise<AppState>{
   const raw=JSON.parse(await file.text())
-  if(raw?.app!=='Smart Workout Coach'||!raw?.data||!Array.isArray(raw.data.sessions)) throw new Error('File sao lưu không hợp lệ.')
-  if((raw.schemaVersion??0)>SCHEMA_VERSION) throw new Error('Bản sao lưu được tạo bởi phiên bản mới hơn.')
-  return migrate(raw.data)
+  if(raw?.app!=='Smart Workout Coach V4'||raw?.schemaVersion!==SCHEMA_VERSION||!raw?.data)throw new Error('File sao lưu không đúng phiên bản V4.')
+  if(!Array.isArray(raw.data.sessions)||!Array.isArray(raw.data.activities)||!Array.isArray(raw.data.metrics))throw new Error('File sao lưu thiếu dữ liệu cần thiết.')
+  return raw.data as AppState
 }

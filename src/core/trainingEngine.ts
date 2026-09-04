@@ -1,229 +1,147 @@
 import { exerciseById, exercises } from '../data/exercises'
 import { attachCardio } from './cardioEngine'
-import type { Exercise, PlannedExercise, ProgramDay, TrainingProgram, UserProfile, WorkoutSession, Readiness, Goal, MovementPattern, SecondaryGoal } from '../types'
+import type { ActivitySession, Exercise, Goal, MovementPattern, PlannedExercise, ProgramDay, Readiness, SecondaryGoal, TrainingPhase, TrainingProgram, UserProfile, WorkoutSession } from '../types'
 
-const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-
-const goalConfig: Record<Goal,{sets:number; repMin:number; repMax:number; rest:number}> = {
-  fat_loss:{sets:3,repMin:8,repMax:15,rest:75}, recomp:{sets:3,repMin:8,repMax:12,rest:90},
-  hypertrophy:{sets:4,repMin:8,repMax:15,rest:90}, strength:{sets:4,repMin:4,repMax:8,rest:150},
-  definition:{sets:3,repMin:8,repMax:15,rest:75}, fitness:{sets:3,repMin:8,repMax:15,rest:75}, skill:{sets:3,repMin:5,repMax:10,rest:120}
+const uid=()=>crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`
+const goalConfig:Record<Goal,{sets:number;repMin:number;repMax:number;rest:number}>={
+  fat_loss:{sets:3,repMin:8,repMax:15,rest:75},recomp:{sets:3,repMin:8,repMax:12,rest:90},hypertrophy:{sets:4,repMin:8,repMax:15,rest:90},
+  strength:{sets:4,repMin:4,repMax:8,rest:150},definition:{sets:3,repMin:8,repMax:15,rest:75},fitness:{sets:3,repMin:8,repMax:15,rest:75},skill:{sets:3,repMin:5,repMax:10,rest:120}
 }
-
-const patternVietnamese:Record<MovementPattern,string>={
-  horizontal_push:'đẩy ngực',vertical_push:'đẩy vai',horizontal_pull:'kéo lưng',vertical_pull:'kéo xô',squat:'chân kiểu Squat',hinge:'mông và gân kheo',lunge:'chân một bên',core:'Core',carry:'mang tải',isolation:'bổ trợ',mobility:'vận động khớp',conditioning:'thể lực'
+const focusPatterns:Record<string,MovementPattern[]>={
+  Full:['vertical_pull','horizontal_push','squat','hinge','vertical_push','core','horizontal_pull','lunge'],Upper:['vertical_pull','horizontal_pull','horizontal_push','vertical_push','isolation','core'],
+  Lower:['squat','hinge','lunge','isolation','core'],Push:['horizontal_push','vertical_push','isolation','core'],Pull:['vertical_pull','horizontal_pull','isolation','core'],Legs:['squat','hinge','lunge','isolation','core']
 }
+const patternLabel:Record<MovementPattern,string>={horizontal_push:'ngực và tay sau',vertical_push:'vai và tay sau',horizontal_pull:'lưng giữa',vertical_pull:'lưng xô và tay trước',squat:'đùi và mông',hinge:'mông và gân kheo',lunge:'chân một bên',core:'core',carry:'toàn thân',isolation:'nhóm cơ phụ',mobility:'độ linh hoạt',conditioning:'thể lực'}
 
-function equipmentOk(ex:Exercise,p:UserProfile){
-  if(!ex.equipment.length) return true
-  return ex.equipment.every(eq=>p.equipment.includes(eq) || eq==='Ghế/bục' || eq==='Điểm bám')
-}
-function injuryOk(ex:Exercise,p:UserProfile){ return !ex.contraindicationTags.some(t=>p.injuries.includes(t)) }
-function typeOk(ex:Exercise,p:UserProfile){ return ex.trainingTypes.includes(p.trainingType) }
-
-function historyFor(id:string,sessions:WorkoutSession[]){
-  return sessions.filter(s=>s.completedAt).flatMap(s=>s.exercises).filter(e=>e.exerciseId===id && !e.skipped).slice(-4)
-}
+function typeOk(e:Exercise,p:UserProfile){return e.trainingTypes.includes(p.trainingType)}
+function equipmentOk(e:Exercise,p:UserProfile){return !e.equipment.length||e.equipment.every(x=>p.equipment.includes(x)||x==='Ghế/bục'||x==='Điểm bám')}
+function injuryOk(e:Exercise,p:UserProfile){return !e.contraindicationTags.some(x=>p.injuries.includes(x))}
+function historyFor(id:string,sessions:WorkoutSession[]){return sessions.filter(s=>s.completedAt).flatMap(s=>s.exercises).filter(e=>e.exerciseId===id&&!e.skipped).slice(-4)}
 
 export function detectFatigue(sessions:WorkoutSession[]){
   const recent=sessions.filter(s=>s.completedAt).slice(-4)
-  if(recent.length<2) return false
-  const high=recent.filter(s=>(s.fatigue??0)>=4 || (s.overallDifficulty??0)>=5).length
-  return high>=Math.min(3,recent.length)
+  return recent.length>=3&&recent.filter(s=>(s.fatigue??0)>=4||(s.overallDifficulty??0)>=5).length>=2
 }
 
-function lastWorkingWeight(id:string,sessions:WorkoutSession[]){
+function exposureScore(log:WorkoutSession['exercises'][number]){
+  const completed=log.sets.filter(s=>s.completed)
+  if(!completed.length)return 0
+  return Math.max(...completed.map(s=>(s.weightKg??0)>0?(s.weightKg??0)*Math.max(1,s.reps??1):(s.reps??0)))
+}
+
+export function isPlateau(id:string,sessions:WorkoutSession[]){
   const h=historyFor(id,sessions)
-  const last=h.at(-1)
-  if(!last) return undefined
-  const weights=last.sets.map(s=>s.weightKg).filter((x):x is number=>typeof x==='number')
-  return weights.length?Math.max(...weights):last.planned.weightKg
+  if(h.length<4)return false
+  const scores=h.map(exposureScore)
+  const best=Math.max(...scores),worst=Math.min(...scores)
+  const noClearGain=best<=0?true:(best-worst)/best<0.04
+  const hard=h.filter(x=>['hard','near_limit','failed'].includes(x.feedback??'good')).length>=2
+  return noClearGain&&hard
 }
 
-function shouldProgress(ex:Exercise,sessions:WorkoutSession[]){
-  const h=historyFor(ex.id,sessions)
-  if(!h.length) return false
-  const last=h.at(-1)!
-  const top=last.planned.maxReps ?? ex.maxReps ?? 12
-  const completed=last.sets.filter(s=>s.completed)
-  return completed.length>=last.planned.sets && completed.every(s=>(s.reps??0)>=top) && !['hard','near_limit','failed'].includes(last.feedback??'good')
+function shouldProgress(e:Exercise,sessions:WorkoutSession[]){
+  const last=historyFor(e.id,sessions).at(-1);if(!last)return false
+  const top=last.planned.maxReps??e.maxReps??12,done=last.sets.filter(s=>s.completed)
+  return done.length>=last.planned.sets&&done.every(s=>(s.reps??0)>=top)&&!['hard','near_limit','failed'].includes(last.feedback??'good')
+}
+function shouldRegress(e:Exercise,sessions:WorkoutSession[]){const h=historyFor(e.id,sessions).slice(-3);return h.length>=2&&h.filter(x=>x.feedback==='failed'||x.feedback==='near_limit').length>=2}
+function lastWeight(id:string,sessions:WorkoutSession[]){const last=historyFor(id,sessions).at(-1);if(!last)return undefined;const w=last.sets.map(s=>s.weightKg).filter((x):x is number=>typeof x==='number');return w.length?Math.max(...w):last.planned.weightKg}
+
+function secondaryMatch(e:Exercise,goals:SecondaryGoal[]){return goals.some(g=>(g==='pullup_10'&&e.movementPattern==='vertical_pull')||(g==='pushup_30'&&e.movementPattern==='horizontal_push')||(g==='dip_20'&&e.movementPattern==='vertical_push')||(g==='l_sit_20'&&e.movementPattern==='core')||(g==='handstand'&&(e.movementPattern==='vertical_push'||e.movementPattern==='core'))||(g==='pistol_squat'&&(e.movementPattern==='squat'||e.movementPattern==='lunge')))}
+function preferenceScore(e:Exercise,p:UserProfile){return p.exercisePreferences[e.id]==='prefer'?24:p.exercisePreferences[e.id]==='avoid'?-60:0}
+
+function adapt(e:Exercise,p:UserProfile,sessions:WorkoutSession[]){
+  if(shouldProgress(e,sessions)&&!e.weighted&&e.harderProgression){const x=exerciseById.get(e.harderProgression);if(x&&typeOk(x,p)&&equipmentOk(x,p)&&injuryOk(x,p))return x}
+  if(shouldRegress(e,sessions)&&e.easierProgression){const x=exerciseById.get(e.easierProgression);if(x&&typeOk(x,p)&&equipmentOk(x,p)&&injuryOk(x,p))return x}
+  return e
 }
 
-function shouldRegress(ex:Exercise,sessions:WorkoutSession[]){
-  const h=historyFor(ex.id,sessions).slice(-3)
-  if(h.length<2) return false
-  return h.filter(x=>x.feedback==='failed' || x.feedback==='near_limit').length>=2
+function reason(e:Exercise,p:UserProfile,sessions:WorkoutSession[]){
+  const bits=[`Bài này phụ trách nhóm ${patternLabel[e.movementPattern]} trong buổi hôm nay.`]
+  if(e.category==='compound')bits.push('Đây là một trong các bài chính của buổi.')
+  if(secondaryMatch(e,p.secondaryGoals))bits.push('Nó cũng khớp với mục tiêu phụ bạn đã chọn.')
+  if(p.exercisePreferences[e.id]==='prefer')bits.push('Bạn đã đánh dấu thích bài này.')
+  if(historyFor(e.id,sessions).length)bits.push('Giữ lại một bài quen giúp so sánh tiến bộ dễ hơn.')
+  return bits.join(' ')
 }
 
-function adaptExercise(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],baseSets:number):Exercise{
-  if(shouldProgress(ex,sessions) && !ex.weighted && ex.harderProgression){
-    const harder=exerciseById.get(ex.harderProgression)
-    if(harder && typeOk(harder,p) && equipmentOk(harder,p) && injuryOk(harder,p)) return harder
-  }
-  if(shouldRegress(ex,sessions) && ex.easierProgression){
-    const easier=exerciseById.get(ex.easierProgression)
-    if(easier && typeOk(easier,p) && equipmentOk(easier,p) && injuryOk(easier,p)) return easier
-  }
-  void baseSets
-  return ex
-}
-
-function secondaryGoalMatches(ex:Exercise,goals:SecondaryGoal[]=[]){
-  return goals.some(g=>
-    (g==='pullup_10'&&ex.movementPattern==='vertical_pull') ||
-    (g==='pushup_30'&&ex.movementPattern==='horizontal_push') ||
-    (g==='dip_20'&&ex.movementPattern==='vertical_push') ||
-    (g==='l_sit_20'&&ex.movementPattern==='core') ||
-    (g==='handstand'&&(ex.movementPattern==='vertical_push'||ex.movementPattern==='core')) ||
-    (g==='pistol_squat'&&(ex.movementPattern==='squat'||ex.movementPattern==='lunge'))
-  )
-}
-
-function selectionReason(ex:Exercise,p:UserProfile,sessions:WorkoutSession[]){
-  const pieces=[`Bài ${patternVietnamese[ex.movementPattern]} của buổi hôm nay.`]
-  if(ex.category==='compound') pieces.push('Đây là bài chính.')
-  if(secondaryGoalMatches(ex,p.secondaryGoals)) pieces.push('Cũng có lợi cho mục tiêu phụ bạn đã chọn.')
-  if(historyFor(ex.id,sessions).length) pieces.push('Giữ lại vì bạn đã tập bài này trước đó.')
-  return pieces.join(' ')
-}
-
-function planned(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],sets:number):PlannedExercise{
-  const cfg=goalConfig[p.goal]
-  const chosen=adaptExercise(ex,p,sessions,sets)
-  let min=chosen.minReps ?? cfg.repMin, max=chosen.maxReps ?? cfg.repMax
-  if(p.goal==='strength' && chosen.category==='compound' && !chosen.holdSeconds){ min=Math.max(3,Math.min(min,5)); max=Math.min(8,Math.max(max,6)) }
-  const item:PlannedExercise={exerciseId:chosen.id,name:chosen.nameEnglish,sets,minReps:min,maxReps:max,seconds:chosen.holdSeconds,restSeconds:Math.max(chosen.recommendedRest,cfg.rest),selectionReason:selectionReason(chosen,p,sessions)}
-  if(chosen.weighted){
-    let w=lastWorkingWeight(chosen.id,sessions)
-    if(w===undefined) w=p.trainingType==='home' ? Math.max(p.dumbbell?.minKg??2,2) : 10
-    if(shouldProgress(chosen,sessions)) w += p.trainingType==='home' ? (p.dumbbell?.stepKg??1) : 2.5
-    item.weightKg=Math.round(w*10)/10
-    if(shouldProgress(chosen,sessions)) item.progressionReason='Buổi trước đã làm đủ số lần khá ổn, lần này tăng tạ một nấc.'
-  } else if(chosen.id!==ex.id){
-    item.progressionReason=chosen.difficulty>ex.difficulty?'Biến thể cũ đã ổn, chuyển lên một mức khó hơn.':'Mấy buổi gần đây hơi quá sức, lùi một mức cho chắc kỹ thuật.'
-  }
+function planned(base:Exercise,p:UserProfile,sessions:WorkoutSession[],sets:number,phase:TrainingPhase):PlannedExercise{
+  const cfg=goalConfig[p.goal],e=adapt(base,p,sessions)
+  let min=e.minReps??cfg.repMin,max=e.maxReps??cfg.repMax
+  if(p.goal==='strength'&&e.category==='compound'&&!e.holdSeconds){min=Math.max(3,Math.min(min,5));max=Math.min(8,Math.max(max,6))}
+  const plateau=isPlateau(e.id,sessions)
+  const item:PlannedExercise={exerciseId:e.id,name:e.nameEnglish,sets:phase==='deload'?Math.max(2,sets-1):sets,minReps:min,maxReps:max,seconds:e.holdSeconds,restSeconds:Math.max(e.recommendedRest,cfg.rest),selectionReason:reason(e,p,sessions),plateau}
+  if(e.weighted){
+    let w=lastWeight(e.id,sessions)??(p.trainingType==='home'?Math.max(2,p.dumbbell?.minKg??2):10)
+    if(phase==='deload')w*=0.9
+    else if(shouldProgress(e,sessions))w+=p.trainingType==='home'?(p.dumbbell?.stepKg??1):2.5
+    item.weightKg=Math.max(0.5,Math.round(w*10)/10)
+    if(phase==='deload')item.progressionReason='Tuần nhẹ: giảm tải một chút để cơ thể hồi lại.'
+    else if(shouldProgress(e,sessions))item.progressionReason='Lần trước đã chạm mức trên khá gọn, lần này tăng tạ một bước nhỏ.'
+  }else if(e.id!==base.id){item.progressionReason=e.difficulty>base.difficulty?'Biến thể trước đã ổn, chuyển lên một mức khó hơn.':'Mấy lần gần đây khá căng, lùi một mức để lấy lại nhịp.'}
+  if(plateau)item.note='Bài này đang chững. Giữ kỹ thuật sạch; nếu vẫn không nhích sau vài buổi nữa có thể đổi biến thể.'
   return item
 }
 
-const focusPatterns: Record<string,MovementPattern[]> = {
-  Full:['vertical_pull','horizontal_push','squat','hinge','vertical_push','core','horizontal_pull','lunge'],
-  Upper:['vertical_pull','horizontal_pull','horizontal_push','vertical_push','isolation','core'],
-  Lower:['squat','hinge','lunge','isolation','core'],
-  Push:['horizontal_push','vertical_push','isolation','core'],
-  Pull:['vertical_pull','horizontal_pull','isolation','core'],
-  Legs:['squat','hinge','lunge','isolation','core']
+function splitFor(n:number){if(n<=2)return ['Full A','Full B'];if(n===3)return ['Full A','Full B','Full C'];if(n===4)return ['Upper A','Lower A','Upper B','Lower B'];if(n===5)return ['Upper','Lower','Push','Pull','Legs'];return ['Push A','Pull A','Legs A','Push B','Pull B','Legs B']}
+function focusOf(title:string){return title.startsWith('Full')?'Full':title.startsWith('Upper')?'Upper':title.startsWith('Lower')?'Lower':title.startsWith('Push')?'Push':title.startsWith('Pull')?'Pull':'Legs'}
+function exerciseCount(minutes:number){return minutes<=20?3:minutes<=30?4:minutes<=45?5:minutes<=60?6:7}
+function candidateScore(e:Exercise,p:UserProfile,sessions:WorkoutSession[],pattern:MovementPattern){
+  let s=100-Math.abs(e.difficulty-({new:2,beginner:3,intermediate:4,advanced:5}[p.experience]))*9
+  if(e.movementPattern===pattern)s+=35;if(e.category==='compound')s+=10;if(historyFor(e.id,sessions).length)s+=8;if(secondaryMatch(e,p.secondaryGoals))s+=18
+  if(p.goal==='strength'&&e.category==='compound')s+=12;if(p.goal==='hypertrophy'&&(e.category==='compound'||e.category==='accessory'))s+=7;if(isPlateau(e.id,sessions))s-=6
+  return s+preferenceScore(e,p)
 }
-
-function candidateScore(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],pattern:MovementPattern){
-  let score=100
-  score -= Math.abs(ex.difficulty - ({new:2,beginner:3,intermediate:4,advanced:5}[p.experience]))*9
-  if(ex.movementPattern===pattern) score+=35
-  if(ex.category==='compound') score+=10
-  if(historyFor(ex.id,sessions).length) score+=8
-  if(shouldRegress(ex,sessions)) score-=15
-  if(p.goal==='strength' && ex.category==='compound') score+=12
-  if(p.goal==='hypertrophy' && (ex.category==='compound'||ex.category==='accessory')) score+=7
-  if(secondaryGoalMatches(ex,p.secondaryGoals)) score+=18
-  return score
-}
-
-function pickForPattern(pattern:MovementPattern,p:UserProfile,sessions:WorkoutSession[],used:Set<string>){
+function pick(pattern:MovementPattern,p:UserProfile,sessions:WorkoutSession[],used:Set<string>){
   const pool=exercises.filter(e=>typeOk(e,p)&&equipmentOk(e,p)&&injuryOk(e,p)&&e.movementPattern===pattern&&!used.has(e.id)&&e.category!=='warmup')
-  pool.sort((a,b)=>candidateScore(b,p,sessions,pattern)-candidateScore(a,p,sessions,pattern))
-  const choice=pool[0]
-  if(choice) used.add(choice.id)
-  return choice
+  pool.sort((a,b)=>candidateScore(b,p,sessions,pattern)-candidateScore(a,p,sessions,pattern));const chosen=pool[0];if(chosen)used.add(chosen.id);return chosen
 }
 
-function splitFor(days:number){
-  if(days<=2) return ['Full A','Full B']
-  if(days===3) return ['Full A','Full B','Full C']
-  if(days===4) return ['Upper A','Lower A','Upper B','Lower B']
-  if(days===5) return ['Upper','Lower','Push','Pull','Legs']
-  return ['Push A','Pull A','Legs A','Push B','Pull B','Legs B']
-}
-function focusOf(title:string){ return title.startsWith('Full')?'Full':title.startsWith('Upper')?'Upper':title.startsWith('Lower')?'Lower':title.startsWith('Push')?'Push':title.startsWith('Pull')?'Pull':'Legs' }
-function exerciseCount(minutes:number){ return minutes<=20?3:minutes<=30?4:minutes<=45?5:minutes<=60?6:7 }
-
-function buildDay(title:string,weekday:number,p:UserProfile,sessions:WorkoutSession[],fatigued:boolean):ProgramDay{
-  const focus=focusOf(title), patterns=[...(focusPatterns[focus]||focusPatterns.Full)]
-  const max=exerciseCount(p.sessionMinutes)
-  const used=new Set<string>(); const chosen:Exercise[]=[]
-  for(const pat of patterns){
-    if(chosen.length>=max) break
-    const found=pickForPattern(pat,p,sessions,used)
-    if(found) chosen.push(found)
-  }
-  const cfg=goalConfig[p.goal]
-  let sets=cfg.sets
-  if(p.experience==='new') sets=Math.min(3,sets)
-  if(fatigued) sets=Math.max(2,sets-1)
-  const items=chosen.map((e,i)=>planned(e,p,sessions,i<2?sets:Math.max(2,sets-1)))
-  return {key:`${title.replaceAll(' ','-').toLowerCase()}-${weekday}`,title,focus,weekday,exercises:items}
+export function blockState(profile:UserProfile,sessions:WorkoutSession[]){
+  const done=sessions.filter(s=>s.completedAt).length
+  const week=Math.floor(done/Math.max(1,profile.daysPerWeek))%6+1
+  const fatigue=detectFatigue(sessions)
+  const phase:TrainingPhase=fatigue||week===6?'deload':week<=2?'base':'build'
+  return {week,phase}
 }
 
-export function generateProgram(p:UserProfile,sessions:WorkoutSession[]=[]):TrainingProgram{
-  const split=splitFor(p.daysPerWeek)
-  const weekdays=(p.trainingDays.length?p.trainingDays:[1,3,5]).slice(0,split.length)
-  while(weekdays.length<split.length) weekdays.push(((weekdays.at(-1)??0)+1)%7)
-  const fatigued=detectFatigue(sessions)
-  const strengthDays=split.map((name,i)=>buildDay(name,weekdays[i],p,sessions,fatigued))
-  const days=attachCardio(strengthDays,p)
+function buildStrengthDay(title:string,weekday:number,p:UserProfile,sessions:WorkoutSession[],phase:TrainingPhase):ProgramDay{
+  const focus=focusOf(title),patterns=focusPatterns[focus]??focusPatterns.Full,max=exerciseCount(p.sessionMinutes),used=new Set<string>(),chosen:Exercise[]=[]
+  for(const pattern of patterns){if(chosen.length>=max)break;const e=pick(pattern,p,sessions,used);if(e)chosen.push(e)}
+  let sets=goalConfig[p.goal].sets;if(p.experience==='new')sets=Math.min(3,sets)
+  return {key:`${title.replaceAll(' ','-').toLowerCase()}-${weekday}`,title,focus,weekday,exercises:chosen.map((e,i)=>planned(e,p,sessions,i<2?sets:Math.max(2,sets-1),phase))}
+}
+
+export function generateProgram(p:UserProfile,sessions:WorkoutSession[]=[],activities:ActivitySession[]=[]):TrainingProgram{
+  const split=splitFor(p.daysPerWeek),days=[...p.trainingDays].slice(0,split.length)
+  const fallback=[1,3,5,2,4,6];for(const d of fallback)if(days.length<split.length&&!days.includes(d))days.push(d)
+  const {week,phase}=blockState(p,sessions)
+  const strength=split.map((name,i)=>buildStrengthDay(name,days[i],p,sessions,phase))
+  const plannedDays=attachCardio(p,strength,week,phase,activities)
   const splitName=split.length<=3?'Full Body':split.length===4?'Upper / Lower':split.length===5?'Upper / Lower / Push / Pull / Legs':'Push / Pull / Legs × 2'
-  const extras:string[]=[]
-  if(p.secondaryGoals?.length) extras.push('Có thêm ưu tiên cho mục tiêu phụ.')
-  if(p.cardio?.enabled&&p.cardio.modes.length) extras.push('Đi bộ/chạy/nhảy dây đã được ghép vào những ngày phù hợp.')
-  if(fatigued) extras.push('Tuần này giảm nhẹ số hiệp vì mấy buổi gần đây khá mệt.')
-  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:1,blockLength:6,splitName,explanation:`${p.daysPerWeek} buổi/tuần · mục tiêu ${goalLabel(p.goal)}. Giữ các bài chính đủ lâu để nhìn thấy tiến bộ. ${extras.join(' ')}`.trim(),days}
+  const blockTitle=phase==='deload'?'Tuần nhẹ':week<=2?'Xây nền':'Tăng dần'
+  const explanation=phase==='deload'?'Tuần này nhẹ hơn một chút. Giữ kỹ thuật đẹp và đừng cố lập kỷ lục.':week<=2?'Hai tuần đầu ưu tiên làm quen nhịp tập và giữ bài ổn định.':'Giữ các bài chính đủ lâu để thấy mình tiến bộ, tăng từng chút khi buổi trước đã làm tốt.'
+  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:week,blockLength:6,phase,blockTitle,splitName,explanation,days:plannedDays}
 }
 
-export function goalLabel(g:Goal){ return ({fat_loss:'giảm mỡ và giữ cơ',recomp:'giảm mỡ đồng thời tăng cơ',hypertrophy:'tăng cơ',strength:'tăng sức mạnh',definition:'giữ cơ và tăng độ nét',fitness:'thể lực toàn diện',skill:'kỹ năng Calisthenics'} as const)[g] }
-
-export function getTodayProgramDay(program:TrainingProgram,date=new Date()):ProgramDay{
-  const day=date.getDay()
-  return program.days.find(d=>d.weekday===day) ?? program.days[0]
+export function getTodayProgramDay(program:TrainingProgram,date=new Date()){const w=date.getDay();return program.days.find(d=>d.weekday===w)??program.days[0]}
+export function suggestTodayDay(program:TrainingProgram,sessions:WorkoutSession[],date=new Date()){
+  const today=date.getDay(),recent=new Set(sessions.filter(s=>s.completedAt&&Date.now()-new Date(s.completedAt).getTime()<7*86400000).map(s=>s.programDayKey))
+  const exact=program.days.find(d=>d.weekday===today)
+  if(exact&&(!exact.exercises.length||!recent.has(exact.key)))return {day:exact,shifted:false}
+  const missed=program.days.filter(d=>d.exercises.length&&!recent.has(d.key)).map(d=>({d,age:(today-d.weekday+7)%7})).filter(x=>x.age>0&&x.age<=3).sort((a,b)=>a.age-b.age)[0]
+  if(missed)return {day:missed.d,shifted:true}
+  const next=[...program.days].sort((a,b)=>((a.weekday-today+7)%7)-((b.weekday-today+7)%7))[0]
+  return {day:next??program.days[0],shifted:false}
 }
 
-export function applyReadiness(day:ProgramDay,r:Readiness):ProgramDay{
-  const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation)
-  const light=r.lighter || stress>=13
-  const max=exerciseCount(r.minutes)
-  const exercises=day.exercises.slice(0,max).map((e,i)=>({...e,sets:light?Math.max(2,e.sets-1):e.sets,restSeconds:light?Math.round(e.restSeconds*1.1):e.restSeconds,note:light&&i<2?'Hôm nay giảm 1 hiệp cho nhẹ chân tay hơn.':e.note}))
-  const cardio=light&&day.cardio?{...day.cardio,minutes:Math.max(8,Math.round(day.cardio.minutes*0.7)),intensity:'easy' as const,note:'Hôm nay làm nhẹ hơn. Nếu vẫn mệt thì bỏ phần này cũng được.'}:day.cardio
-  return {...day,title:light?`${day.title} · Nhẹ`:day.title,exercises,cardio}
+export function applyReadiness(day:ProgramDay,r:Readiness){
+  const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation),light=r.lighter||stress>=13,max=exerciseCount(r.minutes)
+  const exercises=day.exercises.slice(0,max).map((e,i)=>({...e,sets:light?Math.max(2,e.sets-1):e.sets,restSeconds:light?Math.round(e.restSeconds*1.1):e.restSeconds,note:light&&i<2?'Hôm nay giảm một hiệp và nghỉ lâu hơn một chút.':e.note}))
+  return {...day,title:light?`${day.title} · Nhẹ`:day.title,exercises}
 }
-
-export function readinessExplanation(r:Readiness){
-  const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation)
-  const light=r.lighter || stress>=13
-  if(light) return `Hôm nay làm nhẹ hơn một chút: bớt khoảng 1 hiệp ở nhiều bài và nghỉ lâu hơn. Giới hạn trong ${r.minutes} phút.`
-  if(r.minutes<=20) return `Chỉ có ${r.minutes} phút nên giữ các bài quan trọng trước.`
-  return `Giữ lịch như dự kiến trong khoảng ${r.minutes} phút.`
-}
-
-export function createSession(day:ProgramDay,readiness?:Readiness):WorkoutSession{
-  return {id:uid(),programDayKey:day.key,title:day.title,startedAt:new Date().toISOString(),readiness,exercises:day.exercises.map(p=>({exerciseId:p.exerciseId,name:p.name,planned:{...p},sets:Array.from({length:p.sets},()=>({weightKg:p.weightKg,completed:false}))}))}
-}
-
-export function suggestSwap(currentId:string,p:UserProfile,usedIds:string[]){
-  const cur=exerciseById.get(currentId); if(!cur) return []
-  return exercises.filter(e=>e.id!==currentId&&!usedIds.includes(e.id)&&typeOk(e,p)&&equipmentOk(e,p)&&injuryOk(e,p)&&e.movementPattern===cur.movementPattern&&Math.abs(e.difficulty-cur.difficulty)<=1).slice(0,5)
-}
-
-export function finishSession(session:WorkoutSession, overallDifficulty:number, fatigue:number, abnormalPain:boolean, painArea=''){
-  const total=session.exercises.reduce((n,e)=>n+e.sets.length,0)
-  const done=session.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.completed).length,0)
-  return {...session,completedAt:new Date().toISOString(),overallDifficulty,fatigue,abnormalPain,painArea,completionPct:total?Math.round(done/total*100):0}
-}
-
-export function personalRecords(sessions:WorkoutSession[]){
-  const map=new Map<string,{name:string,reps:number,weight:number}>()
-  sessions.filter(s=>s.completedAt).forEach(s=>s.exercises.forEach(e=>e.sets.forEach(set=>{
-    if(!set.completed) return
-    const reps=set.reps??0,weight=set.weightKg??0,prev=map.get(e.exerciseId)
-    const score=weight>0?weight*Math.max(1,reps):reps
-    const prevScore=prev?(prev.weight>0?prev.weight*Math.max(1,prev.reps):prev.reps):-1
-    if(score>prevScore) map.set(e.exerciseId,{name:e.name,reps,weight})
-  })))
-  return [...map.values()].sort((a,b)=>(b.weight*b.reps+b.reps)-(a.weight*a.reps+a.reps))
-}
+export function readinessExplanation(r:Readiness){const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation);if(r.lighter||stress>=13)return `Hôm nay nên nhẹ hơn: bớt khoảng một hiệp ở nhiều bài, nghỉ lâu hơn và giữ trong ${r.minutes} phút.`;if(r.minutes<=20)return `Chỉ có ${r.minutes} phút thì giữ các bài chính trước, phần phụ có thể bỏ.`;return `Có thể giữ buổi như kế hoạch trong khoảng ${r.minutes} phút.`}
+export function createSession(day:ProgramDay,readiness?:Readiness):WorkoutSession{return {id:uid(),programDayKey:day.key,title:day.title,startedAt:new Date().toISOString(),readiness,exercises:day.exercises.map(p=>({exerciseId:p.exerciseId,name:p.name,planned:{...p},sets:Array.from({length:p.sets},()=>({weightKg:p.weightKg,completed:false}))}))}}
+export function suggestSwap(currentId:string,p:UserProfile,usedIds:string[]){const cur=exerciseById.get(currentId);if(!cur)return[];return exercises.filter(e=>e.id!==currentId&&!usedIds.includes(e.id)&&typeOk(e,p)&&equipmentOk(e,p)&&injuryOk(e,p)&&e.movementPattern===cur.movementPattern&&Math.abs(e.difficulty-cur.difficulty)<=1&&p.exercisePreferences[e.id]!=='avoid').sort((a,b)=>preferenceScore(b,p)-preferenceScore(a,p)).slice(0,5)}
+export function finishSession(session:WorkoutSession,overallDifficulty:number,fatigue:number,abnormalPain:boolean,painArea=''){const total=session.exercises.reduce((n,e)=>n+e.sets.length,0),done=session.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.completed).length,0);return {...session,completedAt:new Date().toISOString(),overallDifficulty,fatigue,abnormalPain,painArea,completionPct:total?Math.round(done/total*100):0}}
+export function personalRecords(sessions:WorkoutSession[]){const map=new Map<string,{id:string;name:string;reps:number;weight:number}>();sessions.filter(s=>s.completedAt).forEach(s=>s.exercises.forEach(e=>e.sets.forEach(set=>{if(!set.completed)return;const reps=set.reps??0,weight=set.weightKg??0,score=weight>0?weight*Math.max(1,reps):reps,prev=map.get(e.exerciseId),prevScore=prev?(prev.weight>0?prev.weight*Math.max(1,prev.reps):prev.reps):-1;if(score>prevScore)map.set(e.exerciseId,{id:e.exerciseId,name:e.name,reps,weight})})));return [...map.values()].sort((a,b)=>(b.weight*b.reps+b.reps)-(a.weight*a.reps+a.reps))}

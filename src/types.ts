@@ -5,36 +5,11 @@ export type DifficultyFeedback = 'too_easy' | 'good' | 'hard' | 'near_limit' | '
 export type RecoveryState = 'ready' | 'recovering' | 'fatigued'
 export type UIMode = 'simple' | 'advanced'
 export type SecondaryGoal = 'pullup_10' | 'pushup_30' | 'dip_20' | 'l_sit_20' | 'handstand' | 'pistol_squat'
-export type CardioMode = 'walk' | 'run' | 'jump_rope'
-export type CardioIntensity = 'easy' | 'steady'
 export type MovementPattern = 'horizontal_push' | 'vertical_push' | 'horizontal_pull' | 'vertical_pull' | 'squat' | 'hinge' | 'lunge' | 'core' | 'carry' | 'isolation' | 'mobility' | 'conditioning'
-
-export interface CardioPreferences {
-  enabled: boolean
-  modes: CardioMode[]
-  sessionsPerWeek: number
-  minutes: number
-}
-
-export interface CardioPlan {
-  mode: CardioMode
-  minutes: number
-  intensity: CardioIntensity
-  title: string
-  note: string
-}
-
-export interface ActivitySession {
-  id: string
-  mode: CardioMode
-  startedAt: string
-  completedAt: string
-  durationSeconds: number
-  distanceKm?: number
-  jumpCount?: number
-  avgPaceSecPerKm?: number
-  plannedMinutes?: number
-}
+export type ActivityMode = 'walk' | 'run' | 'jump_rope'
+export type CardioIntensity = 'easy' | 'steady' | 'hard'
+export type TrainingPhase = 'base' | 'build' | 'deload'
+export type ExercisePreference = 'prefer' | 'neutral' | 'avoid'
 
 export interface Exercise {
   id: string
@@ -62,6 +37,14 @@ export interface Exercise {
   weighted?: boolean
 }
 
+export interface CardioPreference {
+  enabled: boolean
+  modes: ActivityMode[]
+  sessionsPerWeek: number
+  minutesByMode: Record<ActivityMode, number>
+  avoidLegDays: boolean
+}
+
 export interface UserProfile {
   id: string
   name: string
@@ -72,10 +55,8 @@ export interface UserProfile {
   targetWeightKg?: number
   trainingType: TrainingType
   goal: Goal
-  skillGoal?: string
-  secondaryGoals?: SecondaryGoal[]
-  uiMode?: UIMode
-  cardio?: CardioPreferences
+  secondaryGoals: SecondaryGoal[]
+  uiMode: UIMode
   experience: Experience
   daysPerWeek: number
   trainingDays: number[]
@@ -85,6 +66,8 @@ export interface UserProfile {
   dumbbell?: { fixed: boolean; minKg: number; maxKg: number; stepKg: number }
   benchmarks: Record<string, number>
   injuries: string[]
+  cardio: CardioPreference
+  exercisePreferences: Record<string, ExercisePreference>
   unit: 'kg' | 'lb'
   theme: 'light' | 'dark'
   createdAt: string
@@ -111,6 +94,15 @@ export interface PlannedExercise {
   note?: string
   progressionReason?: string
   selectionReason?: string
+  plateau?: boolean
+}
+
+export interface CardioPlan {
+  mode: ActivityMode
+  title: string
+  minutes: number
+  intensity: CardioIntensity
+  note: string
 }
 
 export interface ProgramDay {
@@ -127,6 +119,8 @@ export interface TrainingProgram {
   createdAt: string
   blockWeek: number
   blockLength: number
+  phase: TrainingPhase
+  blockTitle: string
   splitName: string
   explanation: string
   days: ProgramDay[]
@@ -162,6 +156,20 @@ export interface WorkoutSession {
   painArea?: string
   note?: string
   completionPct?: number
+}
+
+export interface ActivitySession {
+  id: string
+  programDayKey?: string
+  mode: ActivityMode
+  startedAt: string
+  completedAt: string
+  durationSeconds: number
+  distanceKm?: number
+  jumpCount?: number
+  avgPaceSecPerKm?: number
+  plannedMinutes?: number
+  effort?: number
 }
 
 export interface BodyMetric {

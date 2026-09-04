@@ -1,52 +1,59 @@
 import type { AppState } from '../types'
 
-const DB_NAME='smart-workout-coach'; const STORE='kv'; const DB_VERSION=1; export const SCHEMA_VERSION=3
-const initialState:AppState={schemaVersion:SCHEMA_VERSION,sessions:[],activities:[],metrics:[],demoMode:false}
+const DB_NAME='smart-workout-coach-v4'
+const STORE='kv'
+const DB_VERSION=1
+export const SCHEMA_VERSION=4
+
+export const freshState=():AppState=>({schemaVersion:SCHEMA_VERSION,sessions:[],activities:[],metrics:[],demoMode:false})
 
 function openDb():Promise<IDBDatabase>{
   return new Promise((resolve,reject)=>{
     const req=indexedDB.open(DB_NAME,DB_VERSION)
-    req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE) }
-    req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error)
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE)}
+    req.onsuccess=()=>resolve(req.result)
+    req.onerror=()=>reject(req.error)
   })
 }
-async function get<T>(key:string):Promise<T|undefined>{ const db=await openDb(); return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readonly'); const r=tx.objectStore(STORE).get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error)}) }
-async function put<T>(key:string,value:T){ const db=await openDb(); return new Promise<void>((res,rej)=>{const tx=db.transaction(STORE,'readwrite'); tx.objectStore(STORE).put(value,key); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error)}) }
 
-export function migrate(raw:any):AppState{
-  if(!raw) return structuredClone(initialState)
-  const v=raw.schemaVersion??0
-  let next={...raw}
-  if(v<1) next={...next,schemaVersion:1,sessions:next.sessions??[],metrics:next.metrics??[],demoMode:false}
-  if(v<2){
-    next={...next,schemaVersion:2}
-    if(next.profile){
-      next.profile={...next.profile,uiMode:next.profile.uiMode??'simple',secondaryGoals:Array.isArray(next.profile.secondaryGoals)?next.profile.secondaryGoals:[]}
-    }
-  }
-  if(v<3){
-    next={...next,schemaVersion:3,activities:Array.isArray(next.activities)?next.activities:[]}
-    if(next.profile){
-      next.profile={
-        ...next.profile,
-        cardio:next.profile.cardio??{enabled:false,modes:[],sessionsPerWeek:2,minutes:20}
-      }
-    }
-  }
-  return {...structuredClone(initialState),...next,activities:Array.isArray(next.activities)?next.activities:[],schemaVersion:SCHEMA_VERSION}
+async function get<T>(key:string):Promise<T|undefined>{
+  const db=await openDb()
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readonly')
+    const req=tx.objectStore(STORE).get(key)
+    req.onsuccess=()=>resolve(req.result)
+    req.onerror=()=>reject(req.error)
+  })
 }
 
-export async function loadState(){ return migrate(await get<AppState>('app')) }
-export async function saveState(state:AppState){ await put('app',{...state,schemaVersion:SCHEMA_VERSION}) }
-export async function resetState(){ await saveState(structuredClone(initialState)); return structuredClone(initialState) }
+async function put<T>(key:string,value:T){
+  const db=await openDb()
+  return new Promise<void>((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite')
+    tx.objectStore(STORE).put(value,key)
+    tx.oncomplete=()=>resolve()
+    tx.onerror=()=>reject(tx.error)
+  })
+}
+
+export async function loadState(){
+  const raw=await get<AppState>('app')
+  if(!raw||raw.schemaVersion!==SCHEMA_VERSION)return freshState()
+  return {...freshState(),...raw,activities:raw.activities??[]}
+}
+
+export async function saveState(state:AppState){await put('app',{...state,schemaVersion:SCHEMA_VERSION})}
+export async function resetState(){const next=freshState();await saveState(next);return next}
 
 export function makeDemoState():AppState{
-  const now=new Date(); const days=(n:number)=>new Date(now.getTime()-n*86400000).toISOString()
-  return {schemaVersion:SCHEMA_VERSION,demoMode:true,metrics:[{id:'m1',date:days(20),weightKg:78.4,waistCm:88},{id:'m2',date:days(2),weightKg:77.2,waistCm:86}],activities:[
-    {id:'a1',mode:'run',startedAt:days(5),completedAt:days(5),durationSeconds:1120,distanceKm:2.6,avgPaceSecPerKm:431,plannedMinutes:20},
-    {id:'a2',mode:'jump_rope',startedAt:days(2),completedAt:days(2),durationSeconds:600,jumpCount:760,plannedMinutes:10}
-  ],sessions:[
-    {id:'d1',programDayKey:'demo',title:'Upper A',startedAt:days(7),completedAt:days(7),overallDifficulty:3,fatigue:2,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:6,completed:true},{reps:5,completed:true},{reps:5,completed:true}],feedback:'good'}]},
-    {id:'d2',programDayKey:'demo',title:'Upper B',startedAt:days(3),completedAt:days(3),overallDifficulty:3,fatigue:3,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:7,completed:true},{reps:6,completed:true},{reps:6,completed:true}],feedback:'good'}]}
-  ]}
+  const now=Date.now(), iso=(days:number)=>new Date(now-days*86400000).toISOString()
+  return {
+    schemaVersion:SCHEMA_VERSION,demoMode:true,metrics:[{id:'m1',date:iso(28),weightKg:78.4,waistCm:88},{id:'m2',date:iso(2),weightKg:77.1,waistCm:86}],
+    activities:[{id:'a1',mode:'run',startedAt:iso(4),completedAt:iso(4),durationSeconds:1480,distanceKm:3.2,avgPaceSecPerKm:463,plannedMinutes:25,effort:3}],
+    sessions:[
+      {id:'d1',programDayKey:'full-a-1',title:'Full A',startedAt:iso(10),completedAt:iso(10),overallDifficulty:3,fatigue:2,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:5,completed:true},{reps:5,completed:true},{reps:4,completed:true}],feedback:'good'}]},
+      {id:'d2',programDayKey:'full-b-3',title:'Full B',startedAt:iso(6),completedAt:iso(6),overallDifficulty:3,fatigue:3,completionPct:100,exercises:[{exerciseId:'pullup',name:'Pull-up',planned:{exerciseId:'pullup',name:'Pull-up',sets:3,minReps:5,maxReps:8,restSeconds:120},sets:[{reps:6,completed:true},{reps:5,completed:true},{reps:5,completed:true}],feedback:'good'}]},
+      {id:'d3',programDayKey:'full-c-5',title:'Full C',startedAt:iso(2),completedAt:iso(2),overallDifficulty:3,fatigue:2,completionPct:100,exercises:[{exerciseId:'pushup',name:'Push-up',planned:{exerciseId:'pushup',name:'Push-up',sets:3,minReps:8,maxReps:15,restSeconds:75},sets:[{reps:15,completed:true},{reps:14,completed:true},{reps:13,completed:true}],feedback:'good'}]}
+    ]
+  }
 }

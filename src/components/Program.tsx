@@ -1,11 +1,11 @@
-import type { TrainingProgram } from '../types'
-import { cardioLabels } from '../core/cardioEngine'
+import type { ActivitySession, TrainingProgram, WorkoutSession } from '../types'
 import { weekdays } from '../utils/date'
 
-export default function Program({program,onRegenerate}:{program:TrainingProgram;onRegenerate:()=>void}){
-  return <main className="page"><header><p className="eyebrow">TUẦN {program.blockWeek}/{program.blockLength}</p><h1>Giáo án</h1><p className="muted">{program.splitName}</p></header>
-    <section className="card info"><b>Lịch tuần này</b><p>{program.explanation}</p></section>
-    {program.days.map(d=><section className="card program-day" key={d.key}><div className="section-title"><div><span className="pill">{weekdays[d.weekday]}</span><h3>{d.title}</h3></div><b>{d.exercises.length} bài</b></div>{d.exercises.map((e,i)=><div className="exercise-row" key={`${e.exerciseId}-${i}`}><span className="num">{i+1}</span><div><b>{e.name}</b><small>{e.sets} hiệp × {e.seconds?`${e.seconds} giây`:`${e.minReps}–${e.maxReps} lần`}{e.weightKg?` · ${e.weightKg} kg`:''}</small>{e.progressionReason&&<small className="good">{e.progressionReason}</small>}</div></div>)}{d.cardio&&<div className="program-cardio"><span>+</span><div><b>{cardioLabels[d.cardio.mode]} · {d.cardio.minutes} phút</b><small>{d.cardio.note}</small></div></div>}</section>)}
-    <button className="btn secondary full" onClick={onRegenerate}>Tính lại giáo án</button>
-  </main>
+export default function Program({program,sessions,activities,onRegenerate}:{program:TrainingProgram;sessions:WorkoutSession[];activities:ActivitySession[];onRegenerate:()=>void}){
+  const recent=Date.now()-7*86400000
+  const doneStrength=new Set(sessions.filter(s=>s.completedAt&&new Date(s.completedAt).getTime()>=recent).map(s=>s.programDayKey)),doneCardio=new Set(activities.filter(a=>new Date(a.completedAt).getTime()>=recent&&a.programDayKey).map(a=>a.programDayKey!))
+  const order=[1,2,3,4,5,6,0]
+  return <main className="page"><header><p className="eyebrow">TUẦN {program.blockWeek}/{program.blockLength}</p><h1>Giáo án</h1><p className="muted">{program.splitName} · {program.blockTitle}</p></header><section className="card block-card"><b>{program.blockTitle}</b><p>{program.explanation}</p><div className="block-dots">{Array.from({length:program.blockLength},(_,i)=><i key={i} className={i+1<=program.blockWeek?'active':''}/>)}</div></section>
+    <div className="week-plan">{order.map(weekday=>{const d=program.days.find(x=>x.weekday===weekday);if(!d)return <section className="card program-day rest-day" key={weekday}><span className="pill">{weekdays[weekday]}</span><h3>Nghỉ / linh hoạt</h3><p className="muted">Không có buổi bắt buộc.</p></section>;const strengthDone=!d.exercises.length||doneStrength.has(d.key),cardioDone=!d.cardio||doneCardio.has(d.key);return <section className="card program-day" key={d.key}><div className="section-title"><div><span className="pill">{weekdays[weekday]}</span><h3>{d.title}</h3></div>{strengthDone&&cardioDone?<span className="done-badge">Đã xong</span>:<span className="pending-badge">Theo lịch</span>}</div>{d.exercises.length>0&&<><b className="plan-subtitle">Sức mạnh · {d.exercises.length} bài</b>{d.exercises.map((e,i)=><div className="exercise-row" key={`${e.exerciseId}-${i}`}><span className="num">{i+1}</span><div><b>{e.name}</b><small>{e.sets} hiệp × {e.seconds?`${e.seconds} giây`:`${e.minReps}–${e.maxReps} lần`}{e.weightKg?` · ${e.weightKg} kg`:''}</small></div></div>)}</>}{d.cardio&&<div className="cardio-line"><b>{d.cardio.title}</b><span>{d.cardio.minutes} phút · {d.cardio.intensity==='easy'?'nhẹ':d.cardio.intensity==='steady'?'vừa':'cao'}</span></div>}</section>})}</div>
+    <button className="btn secondary full" onClick={onRegenerate}>Tính lại lịch từ tiến độ hiện tại</button></main>
 }

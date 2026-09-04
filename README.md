@@ -1,29 +1,22 @@
-# Smart Workout Coach V3
+# Smart Workout Coach V4
 
-PWA tập luyện **local-first** cho Calisthenics, tạ đơn tại nhà và phòng Gym, có thể ghép thêm đi bộ, chạy bộ hoặc nhảy dây vào cùng giáo án.
-
-## V3
-- Người dùng tự chọn có kết hợp **Đi bộ / Chạy bộ / Nhảy dây** hay không.
-- Phần vận động được xếp vào các ngày phù hợp trong giáo án sức mạnh, ưu tiên tránh buổi chân khi có lựa chọn tốt hơn.
-- Đi bộ/chạy dùng Geolocation của trình duyệt để ghi thời gian, quãng đường và pace.
-- Nhảy dây dùng timer và bộ đếm số lần.
-- Tiến độ có tổng km, phút vận động, số lần nhảy dây và pace chạy tốt nhất đã lưu.
-- Dữ liệu hoạt động cũng nằm trong IndexedDB và đi cùng Backup/Restore JSON.
-- Migration schema 3 giữ lại hồ sơ, lịch sử và số đo của V1/V2.
+PWA tập luyện local-first cho Calisthenics, tạ đơn tại nhà và phòng Gym. V4 là bản core rewrite sạch: không mang migration V1–V3, dùng schema dữ liệu mới và gom sức mạnh + đi bộ/chạy/nhảy dây vào cùng một kế hoạch tuần.
 
 ## Điểm chính
-- Không tài khoản, không backend, không Supabase/Firebase.
-- Mỗi thiết bị/trình duyệt có dữ liệu riêng.
-- Giáo án theo mục tiêu, số buổi, thời gian, dụng cụ, hạn chế vận động và lịch sử tập.
-- Bodyweight có progression; bài tạ tăng từng nấc khi buổi trước đã đủ tốt.
-- Điều chỉnh buổi theo năng lượng, đau mỏi, giấc ngủ, động lực và thời gian thực tế.
-- Rest timer, đổi bài tương đương, autosave buổi đang tập.
-- Backup/Restore JSON.
-- PWA có thể Add to Home Screen và dùng offline sau khi đã tải.
-- UI tiếng Việt; tên động tác tiếng Anh; dùng “hiệp” và “lần”.
-
-## GPS trên bản web
-GPS chỉ được bật khi người dùng bấm bắt đầu đi bộ/chạy và trình duyệt đã được cấp quyền vị trí. Để đo ổn định hơn trên điện thoại, nên giữ trang hoạt động ở màn hình trước trong lúc chạy/đi bộ.
+- Không tài khoản, không backend, dữ liệu nằm trong IndexedDB trên thiết bị.
+- 190 bài tập seed, lọc theo môi trường tập, dụng cụ và hạn chế vận động.
+- Chu kỳ 6 tuần: xây nền → tăng dần → tuần nhẹ; có thể vào tuần nhẹ sớm khi nhiều buổi gần đây quá mệt.
+- Progressive overload cho bài trọng lượng cơ thể và bài có tạ.
+- Phát hiện bài chững sau nhiều lần lặp mà không có tiến bộ rõ.
+- Người dùng có thể đánh dấu bài **Ưu tiên** hoặc **Không hợp**; lịch sau dùng lựa chọn này khi xếp bài.
+- Lịch linh hoạt: buổi gần nhất bị lỡ có thể được gợi ý dời sang ngày kế tiếp.
+- Ghép đi bộ, chạy bộ, nhảy dây vào cùng lịch; ưu tiên tránh chạy/nhảy dây vào ngày chân nếu đã bật tùy chọn.
+- GPS web cho đi/chạy: thời gian, quãng đường, pace; có nhập quãng đường thủ công khi GPS yếu.
+- Nhảy dây: timer + số lần.
+- Readiness trước buổi tập, quick workout theo thời gian thực tế, rest timer, Smart Swap.
+- Báo cáo 7 ngày, PR, bài đang chững, tiến độ Calisthenics, chỉ số cơ thể và thời gian đồng hành.
+- Backup/Restore JSON V4.
+- PWA offline sau lần tải đầu.
 
 ## Chạy local
 ```bash
@@ -37,20 +30,7 @@ npm test
 npm run build
 ```
 
-## Deploy GitHub Pages
-Workflow: `.github/workflows/deploy-pages.yml`.
-- `v3-upgrade`: chỉ test + production build.
-- `main`: test + build + deploy GitHub Pages.
+## Deploy
+Workflow `.github/workflows/deploy-pages.yml` kiểm tra branch `v4-core-rewrite` nhưng chỉ deploy khi code được đưa vào `main`.
 
-## Cấu trúc
-- `src/core/trainingEngine.ts`: giáo án sức mạnh và điều chỉnh theo lịch sử.
-- `src/core/cardioEngine.ts`: ghép vận động vào giáo án, pace và tổng hợp hoạt động.
-- `src/components/ActivityTracker.tsx`: GPS đi/chạy và timer nhảy dây.
-- `src/storage/`: IndexedDB, migration, backup/restore.
-- `public/sw.js`: service worker offline.
-
-## Dữ liệu
-Không có đồng bộ cloud. Nếu đổi điện thoại/trình duyệt hoặc xoá dữ liệu website, cần xuất Backup JSON trước.
-
-## An toàn
-Ứng dụng không chẩn đoán bệnh. Khi có đau bất thường, nên dừng động tác gây đau; nếu đau mạnh, kéo dài, sưng, yếu hoặc hạn chế vận động thì nên đi kiểm tra chuyên môn.
+Trang Pages: `https://lamhoailinh.github.io/smart-workout-coach/`
