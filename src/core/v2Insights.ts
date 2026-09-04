@@ -10,9 +10,7 @@ export const skillTracks = [
 
 function completedExerciseIds(sessions:WorkoutSession[]){
   const ids=new Set<string>()
-  sessions.filter(s=>s.completedAt).forEach(s=>s.exercises.forEach(e=>{
-    if(!e.skipped && e.sets.some(x=>x.completed)) ids.add(e.exerciseId)
-  }))
+  sessions.filter(s=>s.completedAt).forEach(s=>s.exercises.forEach(e=>{if(!e.skipped && e.sets.some(x=>x.completed)) ids.add(e.exerciseId)}))
   return ids
 }
 
@@ -48,10 +46,10 @@ export function weeklySummary(profile:UserProfile,sessions:WorkoutSession[],metr
   const minutes=week.reduce((n,s)=>n+durationMinutes(s),0)
   const avgCompletion=Math.round(week.reduce((n,s)=>n+(s.completionPct??0),0)/Math.max(1,week.length))
   const highFatigue=week.filter(s=>(s.fatigue??0)>=4||(s.overallDifficulty??0)>=5).length
-  let coach='Bạn đang xây nền đều. App sẽ tiếp tục ưu tiên kỹ thuật và tăng dần khi dữ liệu đủ rõ.'
-  if(week.length>=profile.daysPerWeek&&highFatigue===0) coach='Bạn hoàn thành đủ lịch và mức mệt chưa cao. Chưa cần tăng số ngày tập; hãy để progressive overload diễn ra trong từng bài.'
-  else if(highFatigue>=2) coach='Nhiều buổi gần đây có mức mệt cao. Tuần tới nên giữ hoặc giảm nhẹ khối lượng thay vì cố tăng tất cả cùng lúc.'
-  else if(week.length<Math.max(1,profile.daysPerWeek-1)) coach='Số buổi tuần này thấp hơn kế hoạch. App nên ưu tiên đưa lịch về nhịp đều trước khi tăng độ khó.'
+  let coach='Tuần này cứ giữ nhịp đều trước. Khi các bài bắt đầu nhẹ hơn, giáo án sẽ tăng dần.'
+  if(week.length>=profile.daysPerWeek&&highFatigue===0) coach='Bạn đã hoàn thành đủ lịch và mức mệt vẫn ổn. Chưa cần thêm buổi, cứ tiến tiếp ở các bài hiện tại.'
+  else if(highFatigue>=2) coach='Mấy buổi gần đây khá mệt. Tuần tới nên giữ hoặc giảm nhẹ, không cần cố tăng mọi thứ cùng lúc.'
+  else if(week.length<Math.max(1,profile.daysPerWeek-1)) coach='Tuần này còn thiếu vài buổi. Cứ đưa lịch về nhịp đều trước rồi mới tính chuyện tăng độ khó.'
   const latest=metrics.at(-1), first=metrics.length>1?metrics[0]:undefined
   return {sessions:week.length,target:profile.daysPerWeek,sets,prevSets,minutes,avgCompletion,coach,weightChange:latest?.weightKg!==undefined&&first?.weightKg!==undefined?Math.round((latest.weightKg-first.weightKg)*10)/10:undefined}
 }
