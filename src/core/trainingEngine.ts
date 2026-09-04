@@ -1,4 +1,5 @@
 import { exerciseById, exercises } from '../data/exercises'
+import { attachCardio } from './cardioEngine'
 import type { Exercise, PlannedExercise, ProgramDay, TrainingProgram, UserProfile, WorkoutSession, Readiness, Goal, MovementPattern, SecondaryGoal } from '../types'
 
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -10,7 +11,7 @@ const goalConfig: Record<Goal,{sets:number; repMin:number; repMax:number; rest:n
 }
 
 const patternVietnamese:Record<MovementPattern,string>={
-  horizontal_push:'đẩy ngang cho ngực và tay sau',vertical_push:'đẩy dọc cho vai và tay sau',horizontal_pull:'kéo ngang cho lưng giữa',vertical_pull:'kéo dọc cho lưng xô và tay trước',squat:'Squat cho đùi và mông',hinge:'gập hông cho mông và gân kheo',lunge:'bài chân một bên để cân bằng sức mạnh',core:'Core để ổn định thân người',carry:'mang tải để tăng sức mạnh toàn thân',isolation:'bổ trợ nhóm cơ còn thiếu',mobility:'vận động khớp',conditioning:'thể lực'
+  horizontal_push:'đẩy ngực',vertical_push:'đẩy vai',horizontal_pull:'kéo lưng',vertical_pull:'kéo xô',squat:'chân kiểu Squat',hinge:'mông và gân kheo',lunge:'chân một bên',core:'Core',carry:'mang tải',isolation:'bổ trợ',mobility:'vận động khớp',conditioning:'thể lực'
 }
 
 function equipmentOk(ex:Exercise,p:UserProfile){
@@ -79,17 +80,16 @@ function secondaryGoalMatches(ex:Exercise,goals:SecondaryGoal[]=[]){
 }
 
 function selectionReason(ex:Exercise,p:UserProfile,sessions:WorkoutSession[]){
-  const pieces:string[]=[]
-  pieces.push(`Được chọn để bổ sung chuyển động ${patternVietnamese[ex.movementPattern]}.`)
-  if(ex.category==='compound') pieces.push('Đây là bài chính nên được ưu tiên trước các bài bổ trợ.')
-  if(secondaryGoalMatches(ex,p.secondaryGoals)) pieces.push('Bài này còn hỗ trợ trực tiếp mục tiêu phụ bạn đã chọn.')
-  if(historyFor(ex.id,sessions).length) pieces.push('App giữ bài quen thuộc để theo dõi tiến bộ thay vì đổi bài ngẫu nhiên.')
+  const pieces=[`Bài ${patternVietnamese[ex.movementPattern]} của buổi hôm nay.`]
+  if(ex.category==='compound') pieces.push('Đây là bài chính.')
+  if(secondaryGoalMatches(ex,p.secondaryGoals)) pieces.push('Cũng có lợi cho mục tiêu phụ bạn đã chọn.')
+  if(historyFor(ex.id,sessions).length) pieces.push('Giữ lại vì bạn đã tập bài này trước đó.')
   return pieces.join(' ')
 }
 
 function planned(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],sets:number):PlannedExercise{
   const cfg=goalConfig[p.goal]
-  let chosen=adaptExercise(ex,p,sessions,sets)
+  const chosen=adaptExercise(ex,p,sessions,sets)
   let min=chosen.minReps ?? cfg.repMin, max=chosen.maxReps ?? cfg.repMax
   if(p.goal==='strength' && chosen.category==='compound' && !chosen.holdSeconds){ min=Math.max(3,Math.min(min,5)); max=Math.min(8,Math.max(max,6)) }
   const item:PlannedExercise={exerciseId:chosen.id,name:chosen.nameEnglish,sets,minReps:min,maxReps:max,seconds:chosen.holdSeconds,restSeconds:Math.max(chosen.recommendedRest,cfg.rest),selectionReason:selectionReason(chosen,p,sessions)}
@@ -98,9 +98,9 @@ function planned(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],sets:number
     if(w===undefined) w=p.trainingType==='home' ? Math.max(p.dumbbell?.minKg??2,2) : 10
     if(shouldProgress(chosen,sessions)) w += p.trainingType==='home' ? (p.dumbbell?.stepKg??1) : 2.5
     item.weightKg=Math.round(w*10)/10
-    if(shouldProgress(chosen,sessions)) item.progressionReason='Buổi trước đã đạt đầu trên của khoảng số lần với phản hồi phù hợp → tăng mức tạ một bước.'
+    if(shouldProgress(chosen,sessions)) item.progressionReason='Buổi trước đã làm đủ số lần khá ổn, lần này tăng tạ một nấc.'
   } else if(chosen.id!==ex.id){
-    item.progressionReason=chosen.difficulty>ex.difficulty?'Bạn đã kiểm soát tốt biến thể trước → tăng một cấp độ.':'Các buổi gần đây quá khó → lùi một cấp để ưu tiên kỹ thuật.'
+    item.progressionReason=chosen.difficulty>ex.difficulty?'Biến thể cũ đã ổn, chuyển lên một mức khó hơn.':'Mấy buổi gần đây hơi quá sức, lùi một mức cho chắc kỹ thuật.'
   }
   return item
 }
@@ -143,7 +143,6 @@ function splitFor(days:number){
   return ['Push A','Pull A','Legs A','Push B','Pull B','Legs B']
 }
 function focusOf(title:string){ return title.startsWith('Full')?'Full':title.startsWith('Upper')?'Upper':title.startsWith('Lower')?'Lower':title.startsWith('Push')?'Push':title.startsWith('Pull')?'Pull':'Legs' }
-
 function exerciseCount(minutes:number){ return minutes<=20?3:minutes<=30?4:minutes<=45?5:minutes<=60?6:7 }
 
 function buildDay(title:string,weekday:number,p:UserProfile,sessions:WorkoutSession[],fatigued:boolean):ProgramDay{
@@ -168,10 +167,14 @@ export function generateProgram(p:UserProfile,sessions:WorkoutSession[]=[]):Trai
   const weekdays=(p.trainingDays.length?p.trainingDays:[1,3,5]).slice(0,split.length)
   while(weekdays.length<split.length) weekdays.push(((weekdays.at(-1)??0)+1)%7)
   const fatigued=detectFatigue(sessions)
-  const days=split.map((name,i)=>buildDay(name,weekdays[i],p,sessions,fatigued))
+  const strengthDays=split.map((name,i)=>buildDay(name,weekdays[i],p,sessions,fatigued))
+  const days=attachCardio(strengthDays,p)
   const splitName=split.length<=3?'Full Body':split.length===4?'Upper / Lower':split.length===5?'Upper / Lower / Push / Pull / Legs':'Push / Pull / Legs × 2'
-  const secondary=(p.secondaryGoals?.length??0)>0?' Các mục tiêu phụ được dùng như ưu tiên nhỏ, không lấn át cân bằng toàn thân.':''
-  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:1,blockLength:6,splitName,explanation:`Bạn tập ${p.daysPerWeek} buổi/tuần, mục tiêu ${goalLabel(p.goal)}. Hệ thống ưu tiên tần suất hợp lý, bài phù hợp dụng cụ và tăng dần theo lịch sử thực tế.${secondary}${fatigued?' Khối lượng hiện được giảm nhẹ vì các buổi gần đây có dấu hiệu mệt tích lũy.':''}`,days}
+  const extras:string[]=[]
+  if(p.secondaryGoals?.length) extras.push('Có thêm ưu tiên cho mục tiêu phụ.')
+  if(p.cardio?.enabled&&p.cardio.modes.length) extras.push('Đi bộ/chạy/nhảy dây đã được ghép vào những ngày phù hợp.')
+  if(fatigued) extras.push('Tuần này giảm nhẹ số hiệp vì mấy buổi gần đây khá mệt.')
+  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:1,blockLength:6,splitName,explanation:`${p.daysPerWeek} buổi/tuần · mục tiêu ${goalLabel(p.goal)}. Giữ các bài chính đủ lâu để nhìn thấy tiến bộ. ${extras.join(' ')}`.trim(),days}
 }
 
 export function goalLabel(g:Goal){ return ({fat_loss:'giảm mỡ và giữ cơ',recomp:'giảm mỡ đồng thời tăng cơ',hypertrophy:'tăng cơ',strength:'tăng sức mạnh',definition:'giữ cơ và tăng độ nét',fitness:'thể lực toàn diện',skill:'kỹ năng Calisthenics'} as const)[g] }
@@ -185,21 +188,17 @@ export function applyReadiness(day:ProgramDay,r:Readiness):ProgramDay{
   const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation)
   const light=r.lighter || stress>=13
   const max=exerciseCount(r.minutes)
-  const exercises=day.exercises.slice(0,max).map((e,i)=>({
-    ...e,
-    sets: light ? Math.max(2,e.sets-1) : e.sets,
-    restSeconds: light ? Math.round(e.restSeconds*1.1) : e.restSeconds,
-    note: light && i<2 ? 'Buổi nhẹ: giảm 1 hiệp và tăng thời gian nghỉ để ưu tiên hồi phục.' : e.note
-  }))
-  return {...day,title:light?`${day.title} · Nhẹ`:day.title,exercises}
+  const exercises=day.exercises.slice(0,max).map((e,i)=>({...e,sets:light?Math.max(2,e.sets-1):e.sets,restSeconds:light?Math.round(e.restSeconds*1.1):e.restSeconds,note:light&&i<2?'Hôm nay giảm 1 hiệp cho nhẹ chân tay hơn.':e.note}))
+  const cardio=light&&day.cardio?{...day.cardio,minutes:Math.max(8,Math.round(day.cardio.minutes*0.7)),intensity:'easy' as const,note:'Hôm nay làm nhẹ hơn. Nếu vẫn mệt thì bỏ phần này cũng được.'}:day.cardio
+  return {...day,title:light?`${day.title} · Nhẹ`:day.title,exercises,cardio}
 }
 
 export function readinessExplanation(r:Readiness){
   const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation)
   const light=r.lighter || stress>=13
-  if(light) return `App sẽ cho buổi nhẹ hơn: giữ các bài quan trọng, giảm khoảng 1 hiệp ở nhiều bài và tăng thời gian nghỉ. Thời lượng được giới hạn ở ${r.minutes} phút.`
-  if(r.minutes<=20) return `Hôm nay chỉ có ${r.minutes} phút nên app giữ các bài ưu tiên cao trước, không đơn giản cắt ngẫu nhiên phần cuối.`
-  return `Các chỉ số hôm nay đủ ổn để giữ giáo án dự kiến trong ${r.minutes} phút.`
+  if(light) return `Hôm nay làm nhẹ hơn một chút: bớt khoảng 1 hiệp ở nhiều bài và nghỉ lâu hơn. Giới hạn trong ${r.minutes} phút.`
+  if(r.minutes<=20) return `Chỉ có ${r.minutes} phút nên giữ các bài quan trọng trước.`
+  return `Giữ lịch như dự kiến trong khoảng ${r.minutes} phút.`
 }
 
 export function createSession(day:ProgramDay,readiness?:Readiness):WorkoutSession{
