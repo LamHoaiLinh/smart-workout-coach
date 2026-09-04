@@ -1,5 +1,5 @@
 import { exerciseById, exercises } from '../data/exercises'
-import type { Exercise, PlannedExercise, ProgramDay, TrainingProgram, UserProfile, WorkoutSession, Readiness, Goal, MovementPattern } from '../types'
+import type { Exercise, PlannedExercise, ProgramDay, TrainingProgram, UserProfile, WorkoutSession, Readiness, Goal, MovementPattern, SecondaryGoal } from '../types'
 
 const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
@@ -7,6 +7,10 @@ const goalConfig: Record<Goal,{sets:number; repMin:number; repMax:number; rest:n
   fat_loss:{sets:3,repMin:8,repMax:15,rest:75}, recomp:{sets:3,repMin:8,repMax:12,rest:90},
   hypertrophy:{sets:4,repMin:8,repMax:15,rest:90}, strength:{sets:4,repMin:4,repMax:8,rest:150},
   definition:{sets:3,repMin:8,repMax:15,rest:75}, fitness:{sets:3,repMin:8,repMax:15,rest:75}, skill:{sets:3,repMin:5,repMax:10,rest:120}
+}
+
+const patternVietnamese:Record<MovementPattern,string>={
+  horizontal_push:'đẩy ngang cho ngực và tay sau',vertical_push:'đẩy dọc cho vai và tay sau',horizontal_pull:'kéo ngang cho lưng giữa',vertical_pull:'kéo dọc cho lưng xô và tay trước',squat:'Squat cho đùi và mông',hinge:'gập hông cho mông và gân kheo',lunge:'bài chân một bên để cân bằng sức mạnh',core:'Core để ổn định thân người',carry:'mang tải để tăng sức mạnh toàn thân',isolation:'bổ trợ nhóm cơ còn thiếu',mobility:'vận động khớp',conditioning:'thể lực'
 }
 
 function equipmentOk(ex:Exercise,p:UserProfile){
@@ -63,20 +67,40 @@ function adaptExercise(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],baseS
   return ex
 }
 
+function secondaryGoalMatches(ex:Exercise,goals:SecondaryGoal[]=[]){
+  return goals.some(g=>
+    (g==='pullup_10'&&ex.movementPattern==='vertical_pull') ||
+    (g==='pushup_30'&&ex.movementPattern==='horizontal_push') ||
+    (g==='dip_20'&&ex.movementPattern==='vertical_push') ||
+    (g==='l_sit_20'&&ex.movementPattern==='core') ||
+    (g==='handstand'&&(ex.movementPattern==='vertical_push'||ex.movementPattern==='core')) ||
+    (g==='pistol_squat'&&(ex.movementPattern==='squat'||ex.movementPattern==='lunge'))
+  )
+}
+
+function selectionReason(ex:Exercise,p:UserProfile,sessions:WorkoutSession[]){
+  const pieces:string[]=[]
+  pieces.push(`Được chọn để bổ sung chuyển động ${patternVietnamese[ex.movementPattern]}.`)
+  if(ex.category==='compound') pieces.push('Đây là bài chính nên được ưu tiên trước các bài bổ trợ.')
+  if(secondaryGoalMatches(ex,p.secondaryGoals)) pieces.push('Bài này còn hỗ trợ trực tiếp mục tiêu phụ bạn đã chọn.')
+  if(historyFor(ex.id,sessions).length) pieces.push('App giữ bài quen thuộc để theo dõi tiến bộ thay vì đổi bài ngẫu nhiên.')
+  return pieces.join(' ')
+}
+
 function planned(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],sets:number):PlannedExercise{
   const cfg=goalConfig[p.goal]
   let chosen=adaptExercise(ex,p,sessions,sets)
   let min=chosen.minReps ?? cfg.repMin, max=chosen.maxReps ?? cfg.repMax
   if(p.goal==='strength' && chosen.category==='compound' && !chosen.holdSeconds){ min=Math.max(3,Math.min(min,5)); max=Math.min(8,Math.max(max,6)) }
-  const item:PlannedExercise={exerciseId:chosen.id,name:chosen.nameEnglish,sets,minReps:min,maxReps:max,seconds:chosen.holdSeconds,restSeconds:Math.max(chosen.recommendedRest,cfg.rest)}
+  const item:PlannedExercise={exerciseId:chosen.id,name:chosen.nameEnglish,sets,minReps:min,maxReps:max,seconds:chosen.holdSeconds,restSeconds:Math.max(chosen.recommendedRest,cfg.rest),selectionReason:selectionReason(chosen,p,sessions)}
   if(chosen.weighted){
     let w=lastWorkingWeight(chosen.id,sessions)
     if(w===undefined) w=p.trainingType==='home' ? Math.max(p.dumbbell?.minKg??2,2) : 10
     if(shouldProgress(chosen,sessions)) w += p.trainingType==='home' ? (p.dumbbell?.stepKg??1) : 2.5
     item.weightKg=Math.round(w*10)/10
-    if(shouldProgress(chosen,sessions)) item.progressionReason='Đạt đầu trên của khoảng số lần ở buổi trước → tăng mức tạ một bước.'
+    if(shouldProgress(chosen,sessions)) item.progressionReason='Buổi trước đã đạt đầu trên của khoảng số lần với phản hồi phù hợp → tăng mức tạ một bước.'
   } else if(chosen.id!==ex.id){
-    item.progressionReason=chosen.difficulty>ex.difficulty?'Đã kiểm soát tốt biến thể trước → tăng một cấp độ.':'Các buổi gần đây quá khó → lùi một cấp để giữ kỹ thuật.'
+    item.progressionReason=chosen.difficulty>ex.difficulty?'Bạn đã kiểm soát tốt biến thể trước → tăng một cấp độ.':'Các buổi gần đây quá khó → lùi một cấp để ưu tiên kỹ thuật.'
   }
   return item
 }
@@ -99,6 +123,7 @@ function candidateScore(ex:Exercise,p:UserProfile,sessions:WorkoutSession[],patt
   if(shouldRegress(ex,sessions)) score-=15
   if(p.goal==='strength' && ex.category==='compound') score+=12
   if(p.goal==='hypertrophy' && (ex.category==='compound'||ex.category==='accessory')) score+=7
+  if(secondaryGoalMatches(ex,p.secondaryGoals)) score+=18
   return score
 }
 
@@ -125,7 +150,6 @@ function buildDay(title:string,weekday:number,p:UserProfile,sessions:WorkoutSess
   const focus=focusOf(title), patterns=[...(focusPatterns[focus]||focusPatterns.Full)]
   const max=exerciseCount(p.sessionMinutes)
   const used=new Set<string>(); const chosen:Exercise[]=[]
-  // prioritize main patterns; push core later
   for(const pat of patterns){
     if(chosen.length>=max) break
     const found=pickForPattern(pat,p,sessions,used)
@@ -146,7 +170,8 @@ export function generateProgram(p:UserProfile,sessions:WorkoutSession[]=[]):Trai
   const fatigued=detectFatigue(sessions)
   const days=split.map((name,i)=>buildDay(name,weekdays[i],p,sessions,fatigued))
   const splitName=split.length<=3?'Full Body':split.length===4?'Upper / Lower':split.length===5?'Upper / Lower / Push / Pull / Legs':'Push / Pull / Legs × 2'
-  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:1,blockLength:6,splitName,explanation:`Bạn tập ${p.daysPerWeek} buổi/tuần, mục tiêu ${goalLabel(p.goal)}. Hệ thống ưu tiên tần suất hợp lý, bài phù hợp dụng cụ và tăng dần theo lịch sử thực tế.${fatigued?' Khối lượng hiện được giảm nhẹ vì các buổi gần đây có dấu hiệu mệt tích lũy.':''}`,days}
+  const secondary=(p.secondaryGoals?.length??0)>0?' Các mục tiêu phụ được dùng như ưu tiên nhỏ, không lấn át cân bằng toàn thân.':''
+  return {id:uid(),createdAt:new Date().toISOString(),blockWeek:1,blockLength:6,splitName,explanation:`Bạn tập ${p.daysPerWeek} buổi/tuần, mục tiêu ${goalLabel(p.goal)}. Hệ thống ưu tiên tần suất hợp lý, bài phù hợp dụng cụ và tăng dần theo lịch sử thực tế.${secondary}${fatigued?' Khối lượng hiện được giảm nhẹ vì các buổi gần đây có dấu hiệu mệt tích lũy.':''}`,days}
 }
 
 export function goalLabel(g:Goal){ return ({fat_loss:'giảm mỡ và giữ cơ',recomp:'giảm mỡ đồng thời tăng cơ',hypertrophy:'tăng cơ',strength:'tăng sức mạnh',definition:'giữ cơ và tăng độ nét',fitness:'thể lực toàn diện',skill:'kỹ năng Calisthenics'} as const)[g] }
@@ -164,9 +189,17 @@ export function applyReadiness(day:ProgramDay,r:Readiness):ProgramDay{
     ...e,
     sets: light ? Math.max(2,e.sets-1) : e.sets,
     restSeconds: light ? Math.round(e.restSeconds*1.1) : e.restSeconds,
-    note: light && i<2 ? 'Buổi nhẹ: giảm 1 hiệp để ưu tiên hồi phục.' : e.note
+    note: light && i<2 ? 'Buổi nhẹ: giảm 1 hiệp và tăng thời gian nghỉ để ưu tiên hồi phục.' : e.note
   }))
   return {...day,title:light?`${day.title} · Nhẹ`:day.title,exercises}
+}
+
+export function readinessExplanation(r:Readiness){
+  const stress=(6-r.energy)+(r.soreness-1)+(6-r.sleep)+(6-r.motivation)
+  const light=r.lighter || stress>=13
+  if(light) return `App sẽ cho buổi nhẹ hơn: giữ các bài quan trọng, giảm khoảng 1 hiệp ở nhiều bài và tăng thời gian nghỉ. Thời lượng được giới hạn ở ${r.minutes} phút.`
+  if(r.minutes<=20) return `Hôm nay chỉ có ${r.minutes} phút nên app giữ các bài ưu tiên cao trước, không đơn giản cắt ngẫu nhiên phần cuối.`
+  return `Các chỉ số hôm nay đủ ổn để giữ giáo án dự kiến trong ${r.minutes} phút.`
 }
 
 export function createSession(day:ProgramDay,readiness?:Readiness):WorkoutSession{
