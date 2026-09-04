@@ -1,7 +1,7 @@
 name: Deploy GitHub Pages
 on:
   push:
-    branches: [main, v2-upgrade]
+    branches: [main, v3-upgrade]
   workflow_dispatch:
 permissions:
   contents: read
