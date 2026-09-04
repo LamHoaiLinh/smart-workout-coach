@@ -4,7 +4,7 @@ const DAY_ORDER=[1,2,3,4,5,6,0]
 const dayPos=(weekday:number)=>DAY_ORDER.indexOf(weekday)
 const isLower=(day?:ProgramDay)=>!!day&&(day.focus==='Lower'||day.focus==='Legs')
 const isHardRun=(day?:ProgramDay)=>!!day?.cardio&&day.cardio.mode==='run'&&day.cardio.intensity!=='easy'
-const isLegLoad=(day?:ProgramDay)=>isLower(day)||isHardRun(day)||(day?.cardio?.mode==='jump_rope'&&day.cardio.intensity==='hard')
+const isHardJump=(day?:ProgramDay)=>!!day?.cardio&&day.cardio.mode==='jump_rope'&&day.cardio.intensity==='hard'
 
 export function getWeekKey(date=new Date()){
   const d=new Date(date)
@@ -31,9 +31,11 @@ function conflictCost(day:ProgramDay,candidate:number,placed:Map<number,ProgramD
   const pos=dayPos(candidate)
   const prev=pos>0?placed.get(DAY_ORDER[pos-1]):undefined
   const prev2=pos>1?placed.get(DAY_ORDER[pos-2]):undefined
-  if(isLegLoad(day)&&isLegLoad(prev))cost+=12
+  if(isLower(day)&&isLower(prev))cost+=12
+  if(isLower(day)&&isHardRun(prev))cost+=4
+  if(isHardRun(day)&&isLower(prev))cost+=1
+  if(isHardJump(day)&&isLower(prev))cost+=2
   if(isLower(day)&&isHardRun(prev)&&isLower(prev2))cost+=30
-  if(isHardRun(day)&&isLower(prev))cost+=8
   return cost
 }
 
