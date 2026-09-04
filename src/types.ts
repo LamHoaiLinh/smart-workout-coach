@@ -5,7 +5,36 @@ export type DifficultyFeedback = 'too_easy' | 'good' | 'hard' | 'near_limit' | '
 export type RecoveryState = 'ready' | 'recovering' | 'fatigued'
 export type UIMode = 'simple' | 'advanced'
 export type SecondaryGoal = 'pullup_10' | 'pushup_30' | 'dip_20' | 'l_sit_20' | 'handstand' | 'pistol_squat'
+export type CardioMode = 'walk' | 'run' | 'jump_rope'
+export type CardioIntensity = 'easy' | 'steady'
 export type MovementPattern = 'horizontal_push' | 'vertical_push' | 'horizontal_pull' | 'vertical_pull' | 'squat' | 'hinge' | 'lunge' | 'core' | 'carry' | 'isolation' | 'mobility' | 'conditioning'
+
+export interface CardioPreferences {
+  enabled: boolean
+  modes: CardioMode[]
+  sessionsPerWeek: number
+  minutes: number
+}
+
+export interface CardioPlan {
+  mode: CardioMode
+  minutes: number
+  intensity: CardioIntensity
+  title: string
+  note: string
+}
+
+export interface ActivitySession {
+  id: string
+  mode: CardioMode
+  startedAt: string
+  completedAt: string
+  durationSeconds: number
+  distanceKm?: number
+  jumpCount?: number
+  avgPaceSecPerKm?: number
+  plannedMinutes?: number
+}
 
 export interface Exercise {
   id: string
@@ -46,6 +75,7 @@ export interface UserProfile {
   skillGoal?: string
   secondaryGoals?: SecondaryGoal[]
   uiMode?: UIMode
+  cardio?: CardioPreferences
   experience: Experience
   daysPerWeek: number
   trainingDays: number[]
@@ -89,6 +119,7 @@ export interface ProgramDay {
   focus: string
   weekday: number
   exercises: PlannedExercise[]
+  cardio?: CardioPlan
 }
 
 export interface TrainingProgram {
@@ -148,6 +179,7 @@ export interface AppState {
   profile?: UserProfile
   program?: TrainingProgram
   sessions: WorkoutSession[]
+  activities: ActivitySession[]
   metrics: BodyMetric[]
   activeSession?: WorkoutSession
   demoMode: boolean
