@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { equipmentFor, equipmentInfo } from '../data/equipmentCatalog'
 import type { TrainingType } from '../types'
 
-const commonGym=['Barbell','Dumbbell','Bench','Squat Rack','Cable Machine','Lat Pulldown','Row Machine','Chest Press','Shoulder Press Machine','Leg Press','Leg Extension','Leg Curl','Pec Deck','Cardio Machine']
+const commonGym=['Pull-up Bar','Dip Bar','Barbell','Dumbbell','Bench','Adjustable Bench','Squat Rack','Cable Machine','Lat Pulldown','Row Machine','Chest Press','Shoulder Press Machine','Leg Press','Leg Extension','Leg Curl','Pec Deck','Cardio Machine']
 
 export default function EquipmentPicker({type,value,onChange}:{type:TrainingType;value:string[];onChange:(next:string[])=>void}){
   const [custom,setCustom]=useState(type!=='gym')
@@ -17,7 +17,7 @@ export default function EquipmentPicker({type,value,onChange}:{type:TrainingType
       <button className={custom?'preset-card active':'preset-card'} onClick={()=>setCustom(true)}><b>Tôi muốn tự chọn</b><span>Dùng khi phòng tập nhỏ, thiếu máy hoặc bạn chỉ muốn tập với một số thiết bị.</span></button>
     </div>
     {custom&&<><p className="helper">Tên tiếng Việt được đặt lớn; tên tiếng Anh chỉ để bạn nhận diện khi xem máy hoặc tìm video.</p><div className="equipment-grid">{items.map(x=><EquipmentCard key={x.key} k={x.key} selected={value.includes(x.key)} onClick={()=>toggle(x.key)}/>)}</div></>}
-    {!custom&&<div className="preset-summary">Đã bật {value.length} dụng cụ phổ biến. Bạn vẫn có thể chọn “Tôi muốn tự chọn” để chỉnh chi tiết.</div>}
+    {!custom&&<div className="preset-summary">Đã bật {value.length} dụng cụ phổ biến. Bộ này gồm cả xà đơn, xà kép và ghế chỉnh dốc thường có ở phòng gym.</div>}
   </div>
 }
 
