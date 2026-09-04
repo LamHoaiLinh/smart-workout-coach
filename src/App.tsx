@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Onboarding from './components/Onboarding'
 import Nav, { type Tab } from './components/Nav'
 import Today from './components/Today'
@@ -9,7 +9,7 @@ import Settings from './components/Settings'
 import Workout from './components/Workout'
 import { applyReadiness, createSession, finishSession, generateProgram, getTodayProgramDay } from './core/trainingEngine'
 import { downloadBackup, parseBackup } from './storage/backup'
-import { loadState, makeDemoState, resetState, saveState } from './storage/db'
+import { loadState, makeDemoState, resetState, saveState, SCHEMA_VERSION } from './storage/db'
 import type { AppState, BodyMetric, Readiness, UserProfile, WorkoutSession } from './types'
 
 export default function App(){
@@ -18,8 +18,8 @@ export default function App(){
   useEffect(()=>{if(state) saveState(state)},[state])
   useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),2600);return()=>clearTimeout(t)},[toast])
   const update=(next:AppState)=>setState(next)
-  const createProfile=(profile:UserProfile)=>{const program=generateProgram(profile,[]);update({schemaVersion:1,profile,program,sessions:[],metrics:[],demoMode:false});setTab('today')}
-  const demo=()=>{const d=makeDemoState();const profile:UserProfile={id:'demo-profile',name:'Người dùng Demo',trainingType:'calisthenics',goal:'recomp',experience:'beginner',daysPerWeek:3,trainingDays:[1,3,5],sessionMinutes:30,activityLevel:'medium',equipment:['Pull-up Bar','Dip Bar'],benchmarks:{pushup:15,pullup:4,dip:6},injuries:[],unit:'kg',theme:'light',createdAt:new Date().toISOString()};const program=generateProgram(profile,d.sessions);update({...d,profile,program})}
+  const createProfile=(profile:UserProfile)=>{const program=generateProgram(profile,[]);update({schemaVersion:SCHEMA_VERSION,profile,program,sessions:[],metrics:[],demoMode:false});setTab('today')}
+  const demo=()=>{const d=makeDemoState();const profile:UserProfile={id:'demo-profile',name:'Người dùng Demo',trainingType:'calisthenics',goal:'recomp',secondaryGoals:['pullup_10'],uiMode:'simple',experience:'beginner',daysPerWeek:3,trainingDays:[1,3,5],sessionMinutes:30,activityLevel:'medium',equipment:['Pull-up Bar','Dip Bar'],benchmarks:{pushup:15,pullup:4,dip:6},injuries:[],unit:'kg',theme:'light',createdAt:new Date().toISOString()};const program=generateProgram(profile,d.sessions);update({...d,profile,program})}
   if(!state)return <div className="loading">Đang mở dữ liệu cục bộ…</div>
   if(!state.profile||!state.program)return <Onboarding onDone={createProfile} onDemo={demo}/>
   const p=state.profile, program=state.program, today=getTodayProgramDay(program)
@@ -30,10 +30,10 @@ export default function App(){
   const addMetric=(m:BodyMetric)=>update({...state,metrics:[...state.metrics,m]})
   const restore=async(file:File)=>{try{const data=await parseBackup(file);if(!confirm(`Khôi phục ${data.sessions.length} buổi tập? Dữ liệu hiện tại sẽ bị thay thế.`))return;update(data);setToast('Khôi phục dữ liệu thành công')}catch(e){alert(e instanceof Error?e.message:'Không thể đọc file sao lưu')}}
   const reset=async()=>{if(!confirm('Xoá toàn bộ hồ sơ, giáo án và lịch sử trên thiết bị này?'))return;setState(await resetState())}
-  const theme=(t:UserProfile['theme'])=>update({...state,profile:{...p,theme:t}})
+  const updateProfile=(next:UserProfile,recalc=false)=>{update({...state,profile:next,program:recalc?generateProgram(next,state.sessions):state.program});if(recalc)setToast('Đã cập nhật và tính lại giáo án')}
   const cls=p.theme==='dark'?'app dark':'app'
   if(state.activeSession&&workoutOpen)return <Workout session={state.activeSession} profile={p} history={state.sessions} onChange={activeChange} onFinish={complete} onCancel={()=>{if(confirm('Thoát màn hình tập? Buổi đang tập vẫn được lưu để tiếp tục sau.'))setWorkoutOpen(false)}}/>
   return <div className={cls}><div className="app-frame">
-    {tab==='today'&&<Today profile={p} day={today} sessions={state.sessions} activeSession={state.activeSession} onStart={start} onResume={()=>setWorkoutOpen(true)}/>} {tab==='program'&&<Program program={program} onRegenerate={regenerate}/>} {tab==='progress'&&<Progress sessions={state.sessions} metrics={state.metrics} onAddMetric={addMetric}/>} {tab==='library'&&<Library profile={p}/>} {tab==='settings'&&<Settings state={state} onBackup={()=>downloadBackup(state)} onRestore={restore} onReset={reset} onTheme={theme} onExitDemo={async()=>setState(await resetState())}/>}<Nav tab={tab} onChange={setTab}/>{toast&&<div className="toast">{toast}</div>}
+    {tab==='today'&&<Today profile={p} day={today} sessions={state.sessions} activeSession={state.activeSession} onStart={start} onResume={()=>setWorkoutOpen(true)}/>} {tab==='program'&&<Program program={program} onRegenerate={regenerate}/>} {tab==='progress'&&<Progress profile={p} sessions={state.sessions} metrics={state.metrics} onAddMetric={addMetric}/>} {tab==='library'&&<Library profile={p}/>} {tab==='settings'&&<Settings state={state} onBackup={()=>downloadBackup(state)} onRestore={restore} onReset={reset} onProfile={updateProfile} onExitDemo={async()=>setState(await resetState())}/>}<Nav tab={tab} onChange={setTab}/>{toast&&<div className="toast">{toast}</div>}
   </div></div>
 }
