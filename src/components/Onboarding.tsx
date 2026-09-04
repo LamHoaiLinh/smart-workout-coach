@@ -6,7 +6,7 @@ const uid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())
 const defaultEquipment:Record<TrainingType,string[]>={
   calisthenics:['Pull-up Bar','Dip Bar'],
   home:['Dumbbell','Pull-up Bar','Dip Bar'],
-  gym:['Barbell','Dumbbell','Bench','Squat Rack','Cable Machine','Lat Pulldown','Leg Press','Leg Extension','Leg Curl','Chest Press','Shoulder Press Machine','Pec Deck','Row Machine','Cardio Machine']
+  gym:['Pull-up Bar','Dip Bar','Barbell','Dumbbell','Bench','Adjustable Bench','Squat Rack','Cable Machine','Lat Pulldown','Leg Press','Leg Extension','Leg Curl','Chest Press','Shoulder Press Machine','Pec Deck','Row Machine','Cardio Machine']
 }
 const goals:{id:Goal;name:string;desc:string}[]=[
   {id:'fat_loss',name:'Giảm mỡ + giữ cơ',desc:'Ưu tiên sức mạnh và khối lượng vừa phải.'},
