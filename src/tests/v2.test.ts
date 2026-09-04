@@ -7,8 +7,8 @@ import type { UserProfile, WorkoutSession } from '../types'
 
 const profile:UserProfile={id:'u2',name:'V2',trainingType:'calisthenics',goal:'recomp',secondaryGoals:['pullup_10'],uiMode:'simple',experience:'beginner',daysPerWeek:3,trainingDays:[1,3,5],sessionMinutes:30,activityLevel:'medium',equipment:['Pull-up Bar','Dip Bar'],benchmarks:{pullup:4,pushup:12,dip:5},injuries:[],unit:'kg',theme:'light',createdAt:new Date().toISOString()}
 
-describe('V2 upgrades',()=>{
-  it('migrate V1 lên V2 mà giữ lịch sử',()=>{
+describe('V2 regression',()=>{
+  it('migrate V1 lên schema mới mà giữ lịch sử',()=>{
     const old={schemaVersion:1,profile:{...profile,uiMode:undefined,secondaryGoals:undefined},sessions:[{id:'old'}],metrics:[],demoMode:false}
     const next=migrate(old)
     expect(next.schemaVersion).toBe(SCHEMA_VERSION)
@@ -28,7 +28,7 @@ describe('V2 upgrades',()=>{
   })
   it('readiness giải thích rõ khi cần buổi nhẹ',()=>{
     const text=readinessExplanation({energy:2,soreness:5,sleep:2,motivation:2,minutes:20,lighter:false})
-    expect(text).toContain('giảm')
+    expect(text).toContain('nhẹ')
     expect(text).toContain('20')
   })
   it('báo cáo tuần đếm đúng buổi và hiệp',()=>{
