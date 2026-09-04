@@ -1,9 +1,9 @@
 import type { AppState } from '../types'
 
-const DB_NAME='smart-workout-coach-v4'
+const DB_NAME='smart-workout-coach-1-0'
 const STORE='kv'
 const DB_VERSION=1
-export const SCHEMA_VERSION=4
+export const SCHEMA_VERSION=1
 
 export const freshState=():AppState=>({schemaVersion:SCHEMA_VERSION,sessions:[],activities:[],metrics:[],demoMode:false})
 
@@ -46,7 +46,7 @@ export async function saveState(state:AppState){await put('app',{...state,schema
 export async function resetState(){const next=freshState();await saveState(next);return next}
 
 export function makeDemoState():AppState{
-  const now=Date.now(), iso=(days:number)=>new Date(now-days*86400000).toISOString()
+  const now=Date.now(),iso=(days:number)=>new Date(now-days*86400000).toISOString()
   return {
     schemaVersion:SCHEMA_VERSION,demoMode:true,metrics:[{id:'m1',date:iso(28),weightKg:78.4,waistCm:88},{id:'m2',date:iso(2),weightKg:77.1,waistCm:86}],
     activities:[{id:'a1',mode:'run',startedAt:iso(4),completedAt:iso(4),durationSeconds:1480,distanceKm:3.2,avgPaceSecPerKm:463,plannedMinutes:25,effort:3}],
