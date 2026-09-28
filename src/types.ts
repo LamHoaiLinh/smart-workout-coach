@@ -202,6 +202,20 @@ export interface BodyMetric {
   thighCm?: number
 }
 
+export type CoreDifficultyFeedback = 'easy' | 'good' | 'hard'
+
+export interface CoreProgress {
+  completedDays: number[]
+  currentDay: number
+  difficultyScale: number
+  sessions: {
+    day: number
+    completedAt: string
+    feedback?: CoreDifficultyFeedback
+    durationSeconds: number
+  }[]
+}
+
 export interface AppState {
   schemaVersion: number
   profile?: UserProfile
@@ -210,6 +224,7 @@ export interface AppState {
   sessions: WorkoutSession[]
   activities: ActivitySession[]
   metrics: BodyMetric[]
+  coreProgress?: CoreProgress
   activeSession?: WorkoutSession
   demoMode: boolean
 }
