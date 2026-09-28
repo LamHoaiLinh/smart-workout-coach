@@ -15,6 +15,7 @@ PWA tập luyện local-first cho Calisthenics, tạ đơn tại nhà và phòng
 - GPS web cho đi/chạy: thời gian, quãng đường, pace; có nhập quãng đường thủ công khi GPS yếu.
 - Nhảy dây: timer + số lần.
 - Readiness trước buổi tập, quick workout theo thời gian thực tế, rest timer, đổi bài tương đương.
+- Chức năng **Tập bụng & core 30 ngày** riêng: mức người mới, cá nhân hoá theo plank/kinh nghiệm/phản hồi, hình minh hoạ SVG, đếm giờ bằng giọng Việt và nghỉ tự động giữa hiệp.
 - Trong lúc tập có thể nhập số lần/thời gian/mức tạ bằng bàn phím số kiểu máy tính; có phản hồi nhấn phím khi thiết bị hỗ trợ rung.
 - Báo cáo 7 ngày, PR, bài đang chững, tiến độ Calisthenics và chỉ số cơ thể.
 - Backup/Restore JSON 1.0.
