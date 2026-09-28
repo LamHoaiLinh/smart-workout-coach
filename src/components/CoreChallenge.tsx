@@ -33,7 +33,7 @@ function fmt(sec:number){const m=Math.floor(sec/60),s=sec%60;return `${m}:${Stri
 function profileFactor(profile:UserProfile){
   const plank=profile.benchmarks?.plank
   if(plank!==undefined){if(plank<=20)return .78;if(plank<=40)return .9;if(plank<=70)return 1;return 1.05}
-  return profile.experience==='new'?.78:profile.experience==='beginner'?.9:1
+  return profile.experience==='new'?0.78:profile.experience==='beginner'?0.9:1
 }
 function buildDay(day:number,profile:UserProfile,progress:CoreProgress):DayPlan{
   const cycle=Math.min(4,Math.floor((day-1)/6)),slot=(day-1)%6
@@ -155,7 +155,7 @@ export default function CoreChallenge({profile,progress:raw,onChange}:{profile:U
   const percent=Math.round(completed.size/30*100)
   return <main className="page core-page"><header><p className="eyebrow">THỬ THÁCH RIÊNG</p><h1>Tập bụng & core</h1><p className="muted">30 ngày · ưu tiên nền tảng · tự điều chỉnh để không tăng quá nhanh</p></header>
     <section className="core-hero"><div><span>CORE 30 NGÀY</span><h2>Nền tảng trước, khó dần sau</h2><p>Không video. Mỗi bài có hình minh hoạ, đồng hồ, giọng Việt và nghỉ tự động.</p></div><div className="core-hero-pose"><CorePose pose="plank"/></div></section>
-    <section className="core-progress-card"><div><b>{30-progress.currentDay+1>0?Math.max(0,30-progress.currentDay+1):0} ngày còn lại</b><span>{percent}%</span></div><div className="core-progress-track"><i style={{width:`${percent}%`}}/></div><small>Đã hoàn thành {completed.size}/30 ngày · hệ số độ khó {Math.round(progress.difficultyScale*100)}%</small></section>
+    <section className="core-progress-card"><div><b>{Math.max(0,30-completed.size)} ngày còn lại</b><span>{percent}%</span></div><div className="core-progress-track"><i style={{width:`${percent}%`}}/></div><small>Đã hoàn thành {completed.size}/30 ngày · hệ số độ khó {Math.round(progress.difficultyScale*100)}%</small></section>
     <div className="core-day-list">{Array.from({length:30},(_,i)=>i+1).map(day=>{const p=buildDay(day,profile,progress),done=completed.has(day),current=day===progress.currentDay,locked=day>progress.currentDay&&!done;return <button key={day} disabled={locked} className={`core-day-card ${current?'current':''} ${done?'completed':''} ${p.restDay?'rest-day-card':''}`} onClick={()=>openDay(day)}><div><b>Ngày {day}</b><span>{p.restDay?'Hồi phục':`${p.items.length} bài · ~${Math.ceil(p.totalSeconds/60)} phút`}</span></div><strong>{p.restDay?'☕':done?'✓':locked?'🔒':current?'BẮT ĐẦU':'›'}</strong></button>})}</div>
   </main>
 }
