@@ -8,11 +8,12 @@ import Library from './components/Library'
 import Settings from './components/Settings'
 import Workout from './components/Workout'
 import ActivityTracker from './components/ActivityTracker'
+import CoreChallenge from './components/CoreChallenge'
 import { applyReadiness,createSession,finishSession,generateProgram } from './core/trainingEngine'
 import { buildWeekPlan,currentAvailability,scheduledDayForWeekday } from './core/weekPlanner'
 import { downloadBackup,parseBackup } from './storage/backup'
 import { loadState,makeDemoState,resetState,saveState,SCHEMA_VERSION } from './storage/db'
-import type { ActivitySession,BodyMetric,CardioPlan,ExercisePreference,Readiness,UserProfile,WorkoutSession } from './types'
+import type { ActivitySession,BodyMetric,CardioPlan,CoreProgress,ExercisePreference,Readiness,UserProfile,WorkoutSession } from './types'
 
 export default function App(){
   const [state,setState]=useState<Awaited<ReturnType<typeof loadState>>|null>(null),[tab,setTab]=useState<Tab>('today'),[toast,setToast]=useState(''),[workoutOpen,setWorkoutOpen]=useState(false),[activityOpen,setActivityOpen]=useState<{plan:CardioPlan;key:string}|null>(null)
@@ -31,6 +32,7 @@ export default function App(){
   const saveActivity=(a:ActivitySession)=>{const activities=[...state.activities,a],nextProgram=generateProgram(p,state.sessions,activities);update({...state,activities,program:nextProgram});setActivityOpen(null);setToast('Đã lưu buổi vận động')}
   const regenerate=()=>{update({...state,program:generateProgram(p,state.sessions,state.activities)});setToast('Đã tính lại giáo án')}
   const addMetric=(m:BodyMetric)=>update({...state,metrics:[...state.metrics,m]})
+  const updateCore=(coreProgress:CoreProgress)=>update({...state,coreProgress})
   const restore=async(file:File)=>{try{const data=await parseBackup(file);if(!confirm('Khôi phục file sao lưu 1.0? Dữ liệu hiện tại sẽ bị thay thế.'))return;update(data);setToast('Đã khôi phục dữ liệu')}catch(e){alert(e instanceof Error?e.message:'Không đọc được file')}}
   const reset=async()=>{if(!confirm('Xoá toàn bộ dữ liệu trên thiết bị này?'))return;setState(await resetState())}
   const updateProfile=(next:UserProfile,recalc=false)=>{update({...state,profile:next,program:recalc?generateProgram(next,state.sessions,state.activities):state.program});if(recalc)setToast('Đã cập nhật giáo án')}
@@ -46,5 +48,5 @@ export default function App(){
   const cls=p.theme==='dark'?'app dark':'app'
   if(state.activeSession&&workoutOpen)return <Workout session={state.activeSession} profile={p} history={state.sessions} onChange={activeChange} onFinish={complete} onCancel={()=>setWorkoutOpen(false)}/>
   if(activityOpen)return <ActivityTracker plan={activityOpen.plan} programDayKey={activityOpen.key} onSave={saveActivity} onClose={()=>setActivityOpen(null)}/>
-  return <div className={cls}><div className="app-frame">{tab==='today'&&<Today profile={p} program={program} day={busy?undefined:day} slot={scheduled?.slot} busy={busy} sessions={state.sessions} activities={state.activities} activeSession={state.activeSession} onStart={start} onResume={()=>setWorkoutOpen(true)} onStartCardio={(plan,key)=>setActivityOpen({plan,key})} onBusyToggle={()=>toggleBusy(todayWeekday)}/>} {tab==='program'&&<Program program={program} weekPlan={weekPlan} sessions={state.sessions} activities={state.activities} onRegenerate={regenerate} onToggleBusy={toggleBusy}/>} {tab==='progress'&&<Progress profile={p} sessions={state.sessions} activities={state.activities} metrics={state.metrics} onAddMetric={addMetric}/>} {tab==='library'&&<Library profile={p} onPreference={setPreference}/>} {tab==='settings'&&<Settings state={state} onBackup={()=>downloadBackup(state)} onRestore={restore} onReset={reset} onProfile={updateProfile} onRebuild={regenerate} onExitDemo={async()=>setState(await resetState())}/>}<Nav tab={tab} onChange={setTab}/>{toast&&<div className="toast">{toast}</div>}</div></div>
+  return <div className={cls}><div className="app-frame">{tab==='today'&&<Today profile={p} program={program} day={busy?undefined:day} slot={scheduled?.slot} busy={busy} sessions={state.sessions} activities={state.activities} activeSession={state.activeSession} onStart={start} onResume={()=>setWorkoutOpen(true)} onStartCardio={(plan,key)=>setActivityOpen({plan,key})} onBusyToggle={()=>toggleBusy(todayWeekday)}/>} {tab==='program'&&<Program program={program} weekPlan={weekPlan} sessions={state.sessions} activities={state.activities} onRegenerate={regenerate} onToggleBusy={toggleBusy}/>} {tab==='progress'&&<Progress profile={p} sessions={state.sessions} activities={state.activities} metrics={state.metrics} onAddMetric={addMetric}/>} {tab==='core'&&<CoreChallenge profile={p} progress={state.coreProgress} onChange={updateCore}/>} {tab==='library'&&<Library profile={p} onPreference={setPreference}/>} {tab==='settings'&&<Settings state={state} onBackup={()=>downloadBackup(state)} onRestore={restore} onReset={reset} onProfile={updateProfile} onRebuild={regenerate} onExitDemo={async()=>setState(await resetState())}/>}<Nav tab={tab} onChange={setTab}/>{toast&&<div className="toast">{toast}</div>}</div></div>
 }
