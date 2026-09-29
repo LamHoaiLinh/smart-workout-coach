@@ -160,19 +160,13 @@ export default function CoreChallenge({profile,progress:raw,onChange}:{profile:U
   </main>
 }
 
+const CORE_SPRITE:Record<Pose,{x:number;y:number}>={
+  'plank':{x:0,y:0},'knee-plank':{x:1,y:0},'straight-knee':{x:2,y:0},
+  'side-knee-left':{x:3,y:0},'side-knee-right':{x:3,y:0},'cobra':{x:4,y:0},
+  'dead-bug':{x:0,y:1},'heel-taps':{x:1,y:1},'bird-dog':{x:2,y:1},
+  'glute-bridge':{x:3,y:1},'reverse-crunch':{x:4,y:1}
+}
 function CorePose({pose}:{pose:Pose}){
-  const mirror=pose==='side-knee-right'
-  return <svg viewBox="0 0 360 200" role="img" aria-label="Hình minh hoạ động tác">
-    <rect x="24" y="151" width="312" height="10" rx="5" fill="#bdeaf1"/>
-    <g transform={mirror?'translate(360 0) scale(-1 1)':undefined} fill="none" strokeLinecap="round" strokeLinejoin="round">
-      {(pose==='plank'||pose==='knee-plank'||pose==='straight-knee')&&<><circle cx="278" cy="87" r="13" fill="#5b6467" stroke="none"/><path d="M255 96 L178 96 L105 88" stroke="#43a8d0" strokeWidth="25"/><path d={pose==='knee-plank'||pose==='straight-knee'?'M108 90 L82 128 L54 145':'M108 90 L67 112 L38 146'} stroke="#f1a588" strokeWidth="15"/><path d={pose==='straight-knee'?'M245 103 L247 146 M247 146 L279 146':'M247 103 L236 144 L284 144'} stroke="#f1a588" strokeWidth="14"/></>}
-      {pose==='dead-bug'&&<><circle cx="259" cy="122" r="13" fill="#5b6467" stroke="none"/><path d="M241 124 L166 129" stroke="#43a8d0" strokeWidth="25"/><path d="M179 121 L160 72 M160 72 L150 42" stroke="#f1a588" strokeWidth="13"/><path d="M172 134 L134 96 L96 70 M172 135 L128 147 L82 146" stroke="#f1a588" strokeWidth="14"/></>}
-      {pose==='bird-dog'&&<><circle cx="242" cy="86" r="12" fill="#5b6467" stroke="none"/><path d="M220 94 L158 106 L115 108" stroke="#43a8d0" strokeWidth="24"/><path d="M208 102 L235 145 M160 114 L151 146" stroke="#f1a588" strokeWidth="13"/><path d="M117 108 L67 86 L34 72 M118 115 L86 145" stroke="#f1a588" strokeWidth="13"/></>}
-      {(pose==='side-knee-left'||pose==='side-knee-right')&&<><circle cx="254" cy="91" r="13" fill="#5b6467" stroke="none"/><path d="M232 101 L174 114 L119 127" stroke="#43a8d0" strokeWidth="25"/><path d="M221 108 L233 146 L277 146" stroke="#f1a588" strokeWidth="13"/><path d="M123 132 L83 145 M126 132 L96 111" stroke="#f1a588" strokeWidth="14"/></>}
-      {pose==='heel-taps'&&<><circle cx="275" cy="129" r="13" fill="#5b6467" stroke="none"/><path d="M255 130 L186 132 L146 139" stroke="#43a8d0" strokeWidth="24"/><path d="M151 141 L112 107 L78 145 M152 142 L119 119 L95 147" stroke="#f1a588" strokeWidth="14"/><path d="M220 135 L202 149" stroke="#f1a588" strokeWidth="12"/></>}
-      {pose==='glute-bridge'&&<><circle cx="280" cy="132" r="13" fill="#5b6467" stroke="none"/><path d="M257 133 L198 128 L146 92 L111 92" stroke="#43a8d0" strokeWidth="24"/><path d="M113 99 L77 121 L58 148 M117 98 L92 125 L86 148" stroke="#f1a588" strokeWidth="14"/><path d="M224 139 L207 149" stroke="#f1a588" strokeWidth="12"/></>}
-      {pose==='reverse-crunch'&&<><circle cx="280" cy="132" r="13" fill="#5b6467" stroke="none"/><path d="M257 132 L187 133 L150 126" stroke="#43a8d0" strokeWidth="24"/><path d="M155 126 L131 91 L149 56 M153 126 L111 103 L111 64" stroke="#f1a588" strokeWidth="14"/><path d="M225 138 L205 149" stroke="#f1a588" strokeWidth="12"/></>}
-      {pose==='cobra'&&<><circle cx="270" cy="79" r="13" fill="#5b6467" stroke="none"/><path d="M249 90 L207 105 L163 132 L105 142" stroke="#43a8d0" strokeWidth="24"/><path d="M226 106 L235 146 L273 146" stroke="#f1a588" strokeWidth="13"/><path d="M107 144 L65 147 L39 147" stroke="#f1a588" strokeWidth="14"/></>}
-    </g>
-  </svg>
+  const p=CORE_SPRITE[pose]
+  return <div className={`core-pose-img ${pose==='side-knee-right'?'mirror':''}`} role="img" aria-label="Hình minh hoạ động tác" style={{'--pose-x':p.x,'--pose-y':p.y} as React.CSSProperties}/>
 }
