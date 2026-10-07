@@ -13,18 +13,19 @@ export default function Workout({session,profile,history,onChange,onFinish,onCan
   const [overall,setOverall]=useState(3),[fatigue,setFatigue]=useState(3),[pain,setPain]=useState(false),[painArea,setPainArea]=useState('')
   const item=session.exercises[exerciseIndex],ex=exerciseById.get(item.exerciseId)
   const activeSet=Math.max(0,item.sets.findIndex(s=>!s.completed)),currentSet=item.sets[Math.min(activeSet,item.sets.length-1)]
-  const [reps,setReps]=useState(currentSet?.reps??item.planned.minReps??0),[seconds,setSeconds]=useState(currentSet?.seconds??item.planned.seconds??0),[weight,setWeight]=useState(currentSet?.weightKg??item.planned.weightKg??0)
+  const previous=useMemo(()=>history.filter(s=>s.completedAt).flatMap(s=>s.exercises).filter(e=>e.exerciseId===item.exerciseId).at(-1),[history,item.exerciseId])
+  const [reps,setReps]=useState(currentSet?.reps??previous?.sets[activeSet]?.reps??item.planned.minReps??0),[seconds,setSeconds]=useState(currentSet?.seconds??previous?.sets[activeSet]?.seconds??item.planned.seconds??0),[weight,setWeight]=useState(currentSet?.weightKg??item.planned.weightKg??0)
   const simple=profile.uiMode==='simple'
   const nextSetIndex=item.sets.findIndex(s=>!s.completed)
   const nextExerciseIndex=session.exercises.findIndex((e,i)=>i>exerciseIndex&&!e.skipped&&e.sets.some(s=>!s.completed))
   const previewItem=nextSetIndex>=0?item:(nextExerciseIndex>=0?session.exercises[nextExerciseIndex]:undefined)
   const previewSetIndex=nextSetIndex>=0?nextSetIndex:(previewItem?.sets.findIndex(s=>!s.completed)??0)
   const previewExercise=previewItem?exerciseById.get(previewItem.exerciseId):undefined
-  const previewValue=previewItem?(previewItem.planned.seconds?(previewItem.sets[previewSetIndex]?.seconds??previewItem.planned.seconds??0):(previewItem.sets[previewSetIndex]?.reps??previewItem.planned.minReps??0)):0
+  const previewPrevious=previewItem?history.filter(s=>s.completedAt).flatMap(s=>s.exercises).filter(e=>e.exerciseId===previewItem.exerciseId).at(-1):undefined
+  const previewValue=previewItem?(previewItem.planned.seconds?(previewItem.sets[previewSetIndex]?.seconds??previewPrevious?.sets[previewSetIndex]?.seconds??previewItem.planned.seconds??0):(previewItem.sets[previewSetIndex]?.reps??previewPrevious?.sets[previewSetIndex]?.reps??previewItem.planned.minReps??0)):0
 
   useEffect(()=>{if(rest<=0)return;const t=setInterval(()=>setRest(x=>Math.max(0,x-1)),1000);return()=>clearInterval(t)},[rest])
-  useEffect(()=>{const next=item?.sets.find(s=>!s.completed);setReps(next?.reps??item?.planned.minReps??0);setSeconds(next?.seconds??item?.planned.seconds??0);setWeight(next?.weightKg??item?.planned.weightKg??0)},[exerciseIndex,activeSet,item?.exerciseId])
-  const previous=useMemo(()=>history.filter(s=>s.completedAt).flatMap(s=>s.exercises).filter(e=>e.exerciseId===item.exerciseId).at(-1),[history,item.exerciseId])
+  useEffect(()=>{const next=item?.sets.find(s=>!s.completed);setReps(next?.reps??previous?.sets[activeSet]?.reps??item?.planned.minReps??0);setSeconds(next?.seconds??previous?.sets[activeSet]?.seconds??item?.planned.seconds??0);setWeight(next?.weightKg??item?.planned.weightKg??0)},[exerciseIndex,activeSet,item?.exerciseId,previous])
   const swaps=suggestSwap(item.exerciseId,profile,session.exercises.map(e=>e.exerciseId))
   const updateItem=(next:any)=>{const arr=[...session.exercises];arr[exerciseIndex]=next;onChange({...session,exercises:arr})}
   const completeSet=()=>{const idx=item.sets.findIndex(s=>!s.completed);if(idx<0)return;const sets=item.sets.map((s,i)=>i===idx?{...s,reps:item.planned.seconds?undefined:reps,seconds:item.planned.seconds?seconds:undefined,weightKg:item.planned.weightKg!==undefined?weight:undefined,completed:true}:s);updateItem({...item,sets});setRest(item.planned.restSeconds)}
@@ -39,7 +40,7 @@ export default function Workout({session,profile,history,onChange,onFinish,onCan
       <section className="set-card"><div className="set-head"><b>Hiệp {Math.min(activeSet+1,item.sets.length)} / {item.sets.length}</b><span>Mục tiêu {item.planned.seconds?`${item.planned.seconds} giây`:`${item.planned.minReps}–${item.planned.maxReps} lần`}</span></div>{!allDone&&<>{item.planned.weightKg!==undefined&&<Counter label="Mức tạ" value={weight} step={profile.trainingType==='home'?(profile.dumbbell?.stepKg??1):2.5} suffix="kg" decimal onChange={setWeight}/>}<Counter label={item.planned.seconds?'Thời gian thực tế':'Số lần thực tế'} value={item.planned.seconds?seconds:reps} step={1} suffix={item.planned.seconds?'giây':'lần'} onChange={item.planned.seconds?setSeconds:setReps}/><p className="tap-number-hint">Ví dụ mục tiêu 10 lần nhưng bạn làm được 9: chạm vào số và nhập 9.</p><button className="btn primary full xl" onClick={completeSet}>Hoàn thành hiệp</button></>}
         <div className="set-route-label">Lộ trình các hiệp</div>
         <div className="set-route">{item.sets.map((s,i)=>{
-          const value=item.planned.seconds?(s.completed?(s.seconds??0):(!allDone&&i===activeSet?seconds:(s.seconds??item.planned.seconds??0))):(s.completed?(s.reps??0):(!allDone&&i===activeSet?reps:(s.reps??item.planned.minReps??0)))
+          const value=item.planned.seconds?(s.completed?(s.seconds??0):(!allDone&&i===activeSet?seconds:(s.seconds??previous?.sets[i]?.seconds??item.planned.seconds??0))):(s.completed?(s.reps??0):(!allDone&&i===activeSet?reps:(s.reps??previous?.sets[i]?.reps??item.planned.minReps??0)))
           return <span key={i} className={`set-route-step ${s.completed?'done':(!allDone&&i===activeSet?'current':'')}`}><small>H{i+1}</small><b>{value}</b><em>{item.planned.seconds?'giây':'lần'}</em></span>
         })}</div></section>
       {allDone&&<section className="card"><h3>Bài này cảm giác thế nào?</h3>{simple&&<p className="muted">Chọn cảm giác gần nhất. Lần sau mức tập sẽ dựa thêm vào lựa chọn này.</p>}<div className="feedback-grid">{feedbackItems.map(([v,n])=><button className={item.feedback===v?'active':''} key={v} onClick={()=>feedback(v)}>{n}</button>)}</div><div className="actions"><button className="btn ghost" onClick={()=>setShowSwap(!showSwap)}>Đổi bài</button><button className="btn primary" onClick={goNext}>{exerciseIndex===session.exercises.length-1?'Kết thúc buổi':'Bài tiếp theo'}</button></div></section>}
