@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { exerciseById } from '../data/exercises'
 import { suggestSwap } from '../core/trainingEngine'
 import NumberPad from './NumberPad'
@@ -15,6 +15,12 @@ export default function Workout({session,profile,history,onChange,onFinish,onCan
   const activeSet=Math.max(0,item.sets.findIndex(s=>!s.completed)),currentSet=item.sets[Math.min(activeSet,item.sets.length-1)]
   const [reps,setReps]=useState(currentSet?.reps??item.planned.minReps??0),[seconds,setSeconds]=useState(currentSet?.seconds??item.planned.seconds??0),[weight,setWeight]=useState(currentSet?.weightKg??item.planned.weightKg??0)
   const simple=profile.uiMode==='simple'
+  const nextSetIndex=item.sets.findIndex(s=>!s.completed)
+  const nextExerciseIndex=session.exercises.findIndex((e,i)=>i>exerciseIndex&&!e.skipped&&e.sets.some(s=>!s.completed))
+  const previewItem=nextSetIndex>=0?item:(nextExerciseIndex>=0?session.exercises[nextExerciseIndex]:undefined)
+  const previewSetIndex=nextSetIndex>=0?nextSetIndex:(previewItem?.sets.findIndex(s=>!s.completed)??0)
+  const previewExercise=previewItem?exerciseById.get(previewItem.exerciseId):undefined
+  const previewValue=previewItem?(previewItem.planned.seconds?(previewItem.sets[previewSetIndex]?.seconds??previewItem.planned.seconds??0):(previewItem.sets[previewSetIndex]?.reps??previewItem.planned.minReps??0)):0
 
   useEffect(()=>{if(rest<=0)return;const t=setInterval(()=>setRest(x=>Math.max(0,x-1)),1000);return()=>clearInterval(t)},[rest])
   useEffect(()=>{const next=item?.sets.find(s=>!s.completed);setReps(next?.reps??item?.planned.minReps??0);setSeconds(next?.seconds??item?.planned.seconds??0);setWeight(next?.weightKg??item?.planned.weightKg??0)},[exerciseIndex,activeSet,item?.exerciseId])
@@ -25,21 +31,37 @@ export default function Workout({session,profile,history,onChange,onFinish,onCan
   const feedback=(f:DifficultyFeedback)=>updateItem({...item,feedback:f})
   const goNext=()=>{if(exerciseIndex<session.exercises.length-1){setExerciseIndex(exerciseIndex+1);setRest(0);setShowSwap(false)}else setFinishOpen(true)}
   const skip=()=>{updateItem({...item,skipped:true,sets:item.sets.map(s=>({...s,completed:false}))});goNext()}
-  const swap=(id:string)=>{const e=exerciseById.get(id);if(!e)return;const p={...item.planned,exerciseId:e.id,name:e.nameEnglish,minReps:e.minReps,maxReps:e.maxReps,seconds:e.holdSeconds,restSeconds:e.recommendedRest,weightKg:e.weighted?item.planned.weightKg:undefined,selectionReason:'Đã đổi sang bài cùng kiểu vận động, dụng cụ phù hợp và độ khó gần tương đương.',progressionReason:undefined};updateItem({exerciseId:e.id,name:e.nameEnglish,planned:p,sets:Array.from({length:p.sets},()=>({weightKg:p.weightKg,completed:false}))});setShowSwap(false)}
+  const swap=(id:string)=>{const e=exerciseById.get(id);if(!e)return;const p={...item.planned,exerciseId:e.id,name:e.nameEnglish,minReps:e.minReps,maxReps:e.maxReps,seconds:e.holdSeconds,restSeconds:e.recommendedRest,weightKg:e.weighted?item.planned.weightKg:undefined,selectionReason:'Đã đổi sang bài cùng kiểu vận động, dụng cụ phù hợp và độ khó gần tương đương.',progressionReason:undefined};updateItem({exerciseId:e.id,name:e.nameEnglish,planned:p,sets:Array.from({length:p.sets},()=>({reps:p.seconds?undefined:p.minReps,seconds:p.seconds?p.seconds:undefined,weightKg:p.weightKg,completed:false}))});setShowSwap(false)}
   const allDone=item.skipped||item.sets.every(s=>s.completed)
   const feedbackItems=simple?([['too_easy','Quá nhẹ'],['good','Vừa'],['hard','Khó'],['near_limit','Gần hết sức'],['failed','Không hoàn thành']] as [DifficultyFeedback,string][]):([['too_easy','Quá nhẹ · RIR 4+'],['good','Vừa · RIR 2–3'],['hard','Khó · RIR 1–2'],['near_limit','Gần hết sức · RIR 0–1'],['failed','Không hoàn thành · RIR 0']] as [DifficultyFeedback,string][])
   return <div className="workout-shell"><header className="workout-top"><button className="icon-btn" onClick={onCancel}>×</button><div><small>{session.title}</small><b>Bài {exerciseIndex+1}/{session.exercises.length}</b></div><span>{Math.round(session.exercises.filter(e=>e.skipped||e.sets.every(s=>s.completed)).length/session.exercises.length*100)}%</span></header>
     <main className="workout-main"><div className="progress-line"><i style={{width:`${(exerciseIndex+1)/session.exercises.length*100}%`}}/></div><section className="workout-title"><span className="pill">{ex?.primaryMuscles.join(' · ')}</span><h1>{item.name}</h1><p>{ex?.nameVietnamese}</p>{previous&&<div className="last-time">Lần trước: {previous.sets.filter(s=>s.completed).map(s=>s.reps??s.seconds).join(' / ')} {item.planned.seconds?'giây':'lần'}</div>}{item.planned.progressionReason&&<div className="progression-callout"><b>Điều chỉnh:</b> {item.planned.progressionReason}</div>}</section>
       <section className="set-card"><div className="set-head"><b>Hiệp {Math.min(activeSet+1,item.sets.length)} / {item.sets.length}</b><span>Mục tiêu {item.planned.seconds?`${item.planned.seconds} giây`:`${item.planned.minReps}–${item.planned.maxReps} lần`}</span></div>{!allDone&&<>{item.planned.weightKg!==undefined&&<Counter label="Mức tạ" value={weight} step={profile.trainingType==='home'?(profile.dumbbell?.stepKg??1):2.5} suffix="kg" decimal onChange={setWeight}/>}<Counter label={item.planned.seconds?'Thời gian thực tế':'Số lần thực tế'} value={item.planned.seconds?seconds:reps} step={1} suffix={item.planned.seconds?'giây':'lần'} onChange={item.planned.seconds?setSeconds:setReps}/><p className="tap-number-hint">Ví dụ mục tiêu 10 lần nhưng bạn làm được 9: chạm vào số và nhập 9.</p><button className="btn primary full xl" onClick={completeSet}>Hoàn thành hiệp</button></>}
-        <div className="set-dots">{item.sets.map((s,i)=><span key={i} className={s.completed?'done':''}>{i+1}</span>)}</div></section>
+        <div className="set-route-label">Lộ trình các hiệp</div>
+        <div className="set-route">{item.sets.map((s,i)=>{
+          const value=item.planned.seconds?(s.completed?(s.seconds??0):(!allDone&&i===activeSet?seconds:(s.seconds??item.planned.seconds??0))):(s.completed?(s.reps??0):(!allDone&&i===activeSet?reps:(s.reps??item.planned.minReps??0)))
+          return <span key={i} className={`set-route-step ${s.completed?'done':(!allDone&&i===activeSet?'current':'')}`}><small>H{i+1}</small><b>{value}</b><em>{item.planned.seconds?'giây':'lần'}</em></span>
+        })}</div></section>
       {allDone&&<section className="card"><h3>Bài này cảm giác thế nào?</h3>{simple&&<p className="muted">Chọn cảm giác gần nhất. Lần sau mức tập sẽ dựa thêm vào lựa chọn này.</p>}<div className="feedback-grid">{feedbackItems.map(([v,n])=><button className={item.feedback===v?'active':''} key={v} onClick={()=>feedback(v)}>{n}</button>)}</div><div className="actions"><button className="btn ghost" onClick={()=>setShowSwap(!showSwap)}>Đổi bài</button><button className="btn primary" onClick={goNext}>{exerciseIndex===session.exercises.length-1?'Kết thúc buổi':'Bài tiếp theo'}</button></div></section>}
       {!allDone&&<div className="small-actions"><button onClick={()=>setShowSwap(!showSwap)}>Đổi bài</button><button onClick={skip}>Bỏ bài hôm nay</button></div>}
       {showSwap&&<section className="card"><h3>Đổi bài tương đương</h3><p className="muted">Cùng kiểu vận động, dụng cụ phù hợp và độ khó gần tương đương.</p>{swaps.length?swaps.map(e=><button className="swap-row" key={e.id} onClick={()=>swap(e.id)}><div><b>{e.nameEnglish}</b><small>{e.nameVietnamese}</small></div><span>Độ khó {simple?simpleDifficulty(e.difficulty):`${e.difficulty}/6`}</span></button>):<p>Không có bài thay thế phù hợp với dụng cụ hiện tại.</p>}</section>}
       {ex&&<details className="card"><summary>Kỹ thuật động tác</summary><ol>{ex.instructionsVietnamese.map((x,i)=><li key={i}>{x}</li>)}</ol><b>Hít thở</b><p>{ex.breathingVietnamese}</p></details>}
     </main>
-    {rest>0&&<div className="rest-overlay"><div><small>NGHỈ GIỮA HIỆP</small><b>{String(Math.floor(rest/60)).padStart(2,'0')}:{String(rest%60).padStart(2,'0')}</b><div className="rest-actions"><button onClick={()=>setRest(rest+15)}>+15 giây</button><button onClick={()=>setRest(rest+30)}>+30 giây</button><button onClick={()=>setRest(0)}>Bỏ qua</button></div></div></div>}
+    {rest>0&&<div className="rest-overlay"><div className="rest-panel"><small className="rest-kicker">NGHỈ GIỮA HIỆP</small><strong className="rest-timer">{String(Math.floor(rest/60)).padStart(2,'0')}:{String(rest%60).padStart(2,'0')}</strong>{previewItem?<div className="rest-next"><small>{nextSetIndex>=0?'HIỆP TIẾP THEO':'BÀI TIẾP THEO'}</small><strong>{previewItem.name}</strong><span>{previewExercise?.nameVietnamese&&`${previewExercise.nameVietnamese} · `}Hiệp {previewSetIndex+1}/{previewItem.sets.length} · Mục tiêu {previewValue} {previewItem.planned.seconds?'giây':'lần'}</span></div>:<div className="rest-next"><small>SẮP HOÀN TẤT</small><strong>Đánh giá buổi tập</strong><span>Sau khi nghỉ, ghi lại độ khó và mức mệt.</span></div>}<div className="rest-adjusters"><RestStepper seconds={15} onDelta={d=>setRest(x=>Math.max(0,x+d))}/><RestStepper seconds={30} swipe onDelta={d=>setRest(x=>Math.max(0,x+d))}/></div><button className="rest-skip" onClick={()=>setRest(0)}>Bỏ qua nghỉ</button></div></div>}
     {finishOpen&&<div className="modal-back"><section className="modal card"><h2>Kết thúc buổi tập</h2><label>Độ khó chung <strong>{overall}/5</strong><input type="range" min="1" max="5" value={overall} onChange={e=>setOverall(+e.target.value)}/></label><label>Mức mệt <strong>{fatigue}/5</strong><input type="range" min="1" max="5" value={fatigue} onChange={e=>setFatigue(+e.target.value)}/></label><label className="switch-line"><input type="checkbox" checked={pain} onChange={e=>setPain(e.target.checked)}/> Có đau bất thường</label>{pain&&<input value={painArea} onChange={e=>setPainArea(e.target.value)} placeholder="Vị trí đau..."/>}<div className="warning">Nếu đau nhói, sưng, yếu hoặc hạn chế vận động, dừng động tác gây đau và cân nhắc đánh giá chuyên môn y tế.</div><button className="btn primary full" onClick={()=>onFinish(overall,fatigue,pain,painArea)}>Lưu và hoàn thành</button><button className="btn ghost full" onClick={()=>setFinishOpen(false)}>Quay lại buổi tập</button></section></div>}
   </div>
+}
+
+function RestStepper({seconds,onDelta,swipe=false}:{seconds:number;onDelta:(delta:number)=>void;swipe?:boolean}){
+  const startY=useRef<number|null>(null)
+  const finishSwipe=(clientY:number)=>{
+    if(!swipe||startY.current===null)return
+    const dy=clientY-startY.current
+    startY.current=null
+    if(Math.abs(dy)<24)return
+    onDelta(dy<0?seconds:-seconds)
+  }
+  return <div className="rest-stepper"><button onClick={()=>onDelta(seconds)} aria-label={`Tăng ${seconds} giây`}>+</button><button className={`rest-step-value ${swipe?'swipeable':''}`} onPointerDown={e=>{if(swipe){startY.current=e.clientY;e.currentTarget.setPointerCapture?.(e.pointerId)}}} onPointerUp={e=>finishSwipe(e.clientY)} onPointerCancel={()=>{startY.current=null}} onContextMenu={e=>e.preventDefault()} aria-label={swipe?`${seconds} giây, vuốt lên để tăng và vuốt xuống để giảm`:`${seconds} giây`}><strong>{seconds}</strong><span>giây</span>{swipe&&<em>vuốt ↑↓</em>}</button><button onClick={()=>onDelta(-seconds)} aria-label={`Giảm ${seconds} giây`}>−</button></div>
 }
 
 function Counter({label,value,step,suffix,onChange,decimal=false}:{label:string;value:number;step:number;suffix:string;onChange:(v:number)=>void;decimal?:boolean}){
