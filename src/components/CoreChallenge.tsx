@@ -18,16 +18,18 @@ function speakVi(text:string){
 
 export default function CoreChallenge({profile,progress:raw,onChange}:{profile:UserProfile;progress?:CoreProgress;onChange:(p:CoreProgress)=>void}){
   const progress=raw??DEFAULT_PROGRESS
-  const [selectedDay,setSelectedDay]=useState(clamp(progress.currentDay||1,1,30))
+  const [selectedDay,setSelectedDay]=useState(clamp(progress.currentDay||1,1,60))
   const [view,setView]=useState<'list'|'preview'|'train'|'done'>('list')
   const [voice,setVoice]=useState(true),[runner,setRunner]=useState<Runner|null>(null)
   const spoken=useRef(''),elapsedRef=useRef(0)
   const plan=useMemo(()=>buildCoreDay(selectedDay,profile,progress),[selectedDay,profile,progress])
   const completed=new Set(progress.completedDays)
+  const stageTwoUnlocked=Array.from({length:30},(_,i)=>i+1).every(day=>completed.has(day))
+  const availableDay=stageTwoUnlocked?Math.max(progress.currentDay,31):progress.currentDay
 
   const announce=(key:string,text:string)=>{if(!voice||spoken.current===key)return;spoken.current=key;speakVi(text)}
   const openDay=(day:number)=>{
-    const unlocked=day<=progress.currentDay||completed.has(day)
+    const unlocked=(day<=30||stageTwoUnlocked)&&(day<=availableDay||completed.has(day))
     if(!unlocked)return
     setSelectedDay(day);setView('preview')
   }
@@ -73,12 +75,12 @@ export default function CoreChallenge({profile,progress:raw,onChange}:{profile:U
   const complete=(feedback:CoreDifficultyFeedback)=>{
     const scale=feedback==='easy'?clamp(progress.difficultyScale*1.05,.65,1.1):feedback==='hard'?clamp(progress.difficultyScale*.88,.65,1.1):progress.difficultyScale
     const days=Array.from(new Set([...progress.completedDays,selectedDay])).sort((a,b)=>a-b)
-    const nextDay=clamp(Math.max(progress.currentDay,selectedDay+1),1,30)
+    const nextDay=clamp(Math.max(progress.currentDay,selectedDay+1),1,60)
     onChange({...progress,completedDays:days,currentDay:nextDay,difficultyScale:scale,sessions:[...progress.sessions,{day:selectedDay,completedAt:new Date().toISOString(),feedback,durationSeconds:elapsedRef.current||plan.totalSeconds}]})
     setSelectedDay(nextDay);setRunner(null);setView('list')
   }
   const completeRest=()=>{
-    const days=Array.from(new Set([...progress.completedDays,selectedDay])).sort((a,b)=>a-b),nextDay=clamp(Math.max(progress.currentDay,selectedDay+1),1,30)
+    const days=Array.from(new Set([...progress.completedDays,selectedDay])).sort((a,b)=>a-b),nextDay=clamp(Math.max(progress.currentDay,selectedDay+1),1,60)
     onChange({...progress,completedDays:days,currentDay:nextDay,sessions:[...progress.sessions,{day:selectedDay,completedAt:new Date().toISOString(),durationSeconds:0}]})
     setSelectedDay(nextDay);setView('list')
   }
@@ -95,12 +97,12 @@ export default function CoreChallenge({profile,progress:raw,onChange}:{profile:U
   }
 
   if(view==='done'){
-    return <div className="core-finish"><div className="core-finish-icon">✓</div><p>BUỔI {selectedDay} HOÀN THÀNH</p><h1>Bụng, eo và lưng hôm nay thế nào?</h1><p className="muted">Phản hồi này dùng để tăng hoặc giảm nhẹ thời lượng các ngày sau. App không tăng quá 35 giây mỗi bài.</p><div className="core-feedback"><button onClick={()=>complete('easy')}><b>Quá nhẹ</b><span>Tăng rất nhẹ lần sau</span></button><button onClick={()=>complete('good')} className="recommended"><b>Vừa sức</b><span>Giữ nhịp hiện tại</span></button><button onClick={()=>complete('hard')}><b>Khó quá</b><span>Giảm khoảng 12% lần sau</span></button></div></div>
+    return <div className="core-finish"><div className="core-finish-icon">✓</div><p>BUỔI {selectedDay} HOÀN THÀNH</p><h1>Bụng, eo và lưng hôm nay thế nào?</h1><p className="muted">Phản hồi này dùng để tăng hoặc giảm nhẹ thời lượng các ngày sau. Giai đoạn 1 tối đa 35 giây/bài; giai đoạn 2 tối đa 40 giây/bài, tự điều chỉnh theo phản hồi.</p><div className="core-feedback"><button onClick={()=>complete('easy')}><b>Quá nhẹ</b><span>Tăng rất nhẹ lần sau</span></button><button onClick={()=>complete('good')} className="recommended"><b>Vừa sức</b><span>Giữ nhịp hiện tại</span></button><button onClick={()=>complete('hard')}><b>Khó quá</b><span>Giảm khoảng 12% lần sau</span></button></div></div>
   }
 
   if(view==='preview'){
-    return <main className="page core-preview"><button className="back" onClick={()=>setView('list')}>‹ Quay lại 30 chặng</button><div className="core-preview-head"><span className="pill">BUỔI {selectedDay}</span><h1>{plan.title}</h1><p className="muted">{plan.subtitle}</p></div>
-      {plan.restDay?<section className="card core-rest-day"><div className="coffee">☕</div><h2>Buổi hồi phục cả ba vùng</h2><p>{plan.subtitle}</p><p className="muted">Không cần cố “tập bù”. Ngày hồi phục là một phần của tiến trình 30 ngày.</p><button className="btn primary full" onClick={completeRest}>{completed.has(selectedDay)?'Đã hoàn thành · sang ngày tiếp':'Hoàn thành ngày hồi phục'}</button></section>:<>
+    return <main className="page core-preview"><button className="back" onClick={()=>setView('list')}>‹ Quay lại lộ trình</button><div className="core-preview-head"><span className="pill">BUỔI {selectedDay}</span><h1>{plan.title}</h1><p className="muted">{plan.subtitle}</p></div>
+      {plan.restDay?<section className="card core-rest-day"><div className="coffee">☕</div><h2>Buổi hồi phục cả ba vùng</h2><p>{plan.subtitle}</p><p className="muted">Không cần cố “tập bù”. Buổi hồi phục là một phần của tiến trình 60 chặng.</p><button className="btn primary full" onClick={completeRest}>{completed.has(selectedDay)?'Đã hoàn thành · sang ngày tiếp':'Hoàn thành ngày hồi phục'}</button></section>:<>
         <section className="card"><div className="core-plan-summary"><div><b>{Math.ceil(plan.totalSeconds/60)} phút</b><span>ước tính</span></div><div><b>{plan.items.length}</b><span>bài</span></div><div><b>{plan.restSeconds}s</b><span>nghỉ giữa hiệp</span></div></div>
           <p className="core-personal-note">Cá nhân hoá theo plank hiện tại <b>{profile.benchmarks?.plank??'chưa có'}{profile.benchmarks?.plank!==undefined?' giây':''}</b>, mức kinh nghiệm <b>{profile.experience==='new'?'mới tập':profile.experience==='beginner'?'cơ bản':profile.experience==='intermediate'?'trung bình':'nâng cao'}</b> và phản hồi các ngày trước.</p>
           <div className="core-exercise-list">{plan.items.map((x,i)=><div key={x.id+`-${i}`} className="core-exercise-row"><div className="core-thumb"><CorePose pose={x.pose}/></div><div><b>{x.name}</b><span>{x.area} · {x.seconds} giây</span><small>{x.tip}</small></div></div>)}</div>
@@ -108,11 +110,49 @@ export default function CoreChallenge({profile,progress:raw,onChange}:{profile:U
     </main>
   }
 
-  const percent=Math.round(completed.size/30*100)
-  return <main className="page core-page"><header><p className="eyebrow">THỬ THÁCH RIÊNG</p><h1>Bụng · Eo · Lưng</h1><p className="muted">30 chặng theo tiến độ · đủ 3 vùng mỗi buổi · thay đổi bài theo ngày</p></header>
-    <section className="core-hero"><div><span>3 VÙNG · 30 CHẶNG</span><h2>Đủ bụng, eo, lưng mỗi buổi</h2><p>Luân phiên 10 mẫu, tăng vừa sức. Tập 3 buổi/tuần cũng được: cứ đi tiếp chặng còn lại.</p></div><div className="core-hero-pose"><CorePose pose="plank"/></div></section>
-    <section className="core-progress-card"><div><b>{Math.max(0,30-completed.size)} chặng còn lại</b><span>{percent}%</span></div><div className="core-progress-track"><i style={{width:`${percent}%`}}/></div><small>Đã hoàn thành {completed.size}/30 chặng · hệ số độ khó {Math.round(progress.difficultyScale*100)}%</small></section>
-    <div className="core-day-list">{Array.from({length:30},(_,i)=>i+1).map(day=>{const p=buildCoreDay(day,profile,progress),done=completed.has(day),current=day===progress.currentDay,locked=day>progress.currentDay&&!done;return <button key={day} disabled={locked} className={`core-day-card ${current?'current':''} ${done?'completed':''} ${p.restDay?'rest-day-card':''}`} onClick={()=>openDay(day)}><div><b>Buổi {day}</b><span>{p.restDay?'Hồi phục':`${p.items.length} bài · ~${Math.ceil(p.totalSeconds/60)} phút`}</span></div><strong>{p.restDay?'☕':done?'✓':locked?'🔒':current?'BẮT ĐẦU':'›'}</strong></button>})}</div>
+  const countOne=Array.from({length:30},(_,i)=>i+1).filter(day=>completed.has(day)).length
+  const countTwo=Array.from({length:30},(_,i)=>i+31).filter(day=>completed.has(day)).length
+  const activeStage=stageTwoUnlocked?2:1
+  const stageCount=stageTwoUnlocked?countTwo:countOne
+  const percent=Math.round(stageCount/30*100)
+  const stageCards=(begin:number,finish:number,stageTwo:boolean)=>Array.from({length:finish-begin+1},(_,i)=>begin+i).map(day=>{
+    const p=buildCoreDay(day,profile,progress)
+    const done=completed.has(day),current=day===availableDay&&!done
+    const locked=(stageTwo&&!stageTwoUnlocked)||(day>availableDay&&!done)
+    return <button key={day} disabled={locked} aria-label={`Chặng ${day}: ${locked?'đang khóa':done?'đã hoàn thành':'có thể bắt đầu'}`}
+      className={`core-day-card ${current?'current':''} ${done?'completed':''} ${p.restDay?'rest-day-card':''} ${locked?'core-locked':''}`}
+      onClick={()=>openDay(day)}>
+      <div><b>Buổi {day}</b><span>{p.restDay?'Hồi phục':`${p.items.length} bài · ~${Math.ceil(p.totalSeconds/60)} phút`}</span></div>
+      <strong>{locked?'🔒':p.restDay?'☕':done?'✓':current?'BẮT ĐẦU':'›'}</strong>
+    </button>
+  })
+  return <main className="page core-page">
+    <header><p className="eyebrow">THỬ THÁCH BA VÙNG</p><h1>Bụng · Eo · Lưng</h1>
+      <p className="muted">2 giai đoạn · 60 chặng · đủ 3 vùng mỗi buổi · điều chỉnh theo thể lực</p>
+    </header>
+    <section className="core-hero"><div><span>GIAI ĐOẠN {activeStage} / 2</span>
+      <h2>{activeStage===1?'Xây nền bụng · eo · lưng':'Vững hơn và đa dạng hơn'}</h2>
+      <p>Luân phiên các mẫu tập. Có thể tập thứ 3–5–7, không cần hoàn thành các chặng vào ngày liên tục.</p>
+    </div><div className="core-hero-pose"><CorePose pose="plank"/></div></section>
+    <section className="core-progress-card">
+      <div><b>Giai đoạn {activeStage} · {Math.max(0,30-stageCount)} chặng còn lại</b><span>{percent}%</span></div>
+      <div className="core-progress-track"><i style={{width:`${percent}%`}}/></div>
+      <small>Đã hoàn thành {countOne+countTwo}/60 chặng · độ khó hiện tại {Math.round(progress.difficultyScale*100)}%</small>
+    </section>
+    <div className="core-stage-header"><b>Giai đoạn 1 · Nền tảng</b><span>Chặng 1–30 · {countOne}/30</span></div>
+    <div className="core-day-list">{stageCards(1,30,false)}</div>
+    <details className={`core-stage-two ${stageTwoUnlocked?'stage-unlocked':'stage-locked'}`} key={stageTwoUnlocked?'open':'closed'} open={stageTwoUnlocked?true:undefined}>
+      <summary><div><b>Giai đoạn 2 · Tăng kiểm soát</b><span>Chặng 31–60 · {countTwo}/30 · 10 mẫu luân phiên mới</span></div>
+        <strong>{stageTwoUnlocked?'ĐÃ MỞ':'🔒 XEM TRƯỚC'}</strong>
+      </summary>
+      <div className="core-stage-two-content">
+        <p className="muted">{stageTwoUnlocked?'Chọn chặng tiếp theo, tập với tốc độ phù hợp.':'Hoàn thành đủ 30 chặng giai đoạn 1 để mở khóa. Có thể xem trước nhưng chưa thể bắt đầu.'}</p>
+        <div className="core-day-list">{stageCards(31,60,true)}</div>
+      </div>
+    </details>
+    {countTwo===30&&<section className="card core-complete-note"><b>Đã hoàn thành cả hai giai đoạn.</b>
+      <p>Tiếp tục duy trì 2–3 buổi/tuần, luân phiên các bài đã học và thêm bài kéo lưng phù hợp. Không cần tăng độ khó vô hạn.</p>
+    </section>}
   </main>
 }
 
@@ -123,6 +163,19 @@ const CORE_SPRITE:Partial<Record<Pose,{x:number;y:number}>>={
   'glute-bridge':{x:3,y:1},'reverse-crunch':{x:4,y:1}
 }
 function CorePose({pose}:{pose:Pose}){
+  if(pose==='side-full-left'||pose==='side-full-right')return <div className={`core-side-full-pose ${pose==='side-full-right'?'mirror':''}`} role="img" aria-label="Plank nghiêng chân thẳng, tỳ cẳng tay và hai bàn chân">
+    <svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="24" y="24" width="252" height="252" rx="22" fill="#edf4ef"/>
+      <line x1="36" y1="248" x2="265" y2="248" stroke="#a5bfaf" strokeWidth="5" strokeLinecap="round"/>
+      <line x1="67" y1="216" x2="205" y2="135" stroke="#367a61" strokeWidth="25" strokeLinecap="round"/>
+      <line x1="77" y1="220" x2="55" y2="236" stroke="#325f52" strokeWidth="9" strokeLinecap="round"/>
+      <line x1="205" y1="134" x2="217" y2="225" stroke="#deb293" strokeWidth="15" strokeLinecap="round"/>
+      <line x1="217" y1="225" x2="254" y2="225" stroke="#deb293" strokeWidth="14" strokeLinecap="round"/>
+      <circle cx="228" cy="113" r="24" fill="#e8be9d" stroke="#367a61" strokeWidth="3"/>
+      <line x1="195" y1="132" x2="193" y2="91" stroke="#deb293" strokeWidth="11" strokeLinecap="round"/>
+      <text x="150" y="276" textAnchor="middle" fill="#275344" fontSize="12" fontWeight="700">PLANK NGHIÊNG CHÂN THẲNG</text>
+    </svg>
+  </div>
   if(pose==='prone-w'||pose==='prone-lift')return <div className="core-prone-pose" role="img" aria-label={pose==='prone-w'?'Minh hoạ nằm sấp kéo hai bả vai về sau':'Minh hoạ nằm sấp nâng ngực nhẹ'}>
     <svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <rect x="24" y="24" width="252" height="252" rx="22" fill="#eaf0ea"/>

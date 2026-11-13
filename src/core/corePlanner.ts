@@ -1,6 +1,6 @@
 import type {CoreProgress,UserProfile} from '../types'
 
-export type Pose='knee-plank'|'plank'|'straight-knee'|'dead-bug'|'bird-dog'|'side-knee-left'|'side-knee-right'|'heel-taps'|'glute-bridge'|'reverse-crunch'|'cobra'|'prone-w'|'prone-lift'
+export type Pose='knee-plank'|'plank'|'straight-knee'|'dead-bug'|'bird-dog'|'side-knee-left'|'side-knee-right'|'heel-taps'|'glute-bridge'|'reverse-crunch'|'cobra'|'prone-w'|'prone-lift'|'side-full-left'|'side-full-right'
 export type CoreArea='Bụng'|'Eo'|'Lưng'|'Thả lỏng'
 export type CoreItem={id:string;name:string;pose:Pose;area:CoreArea;baseSeconds:number;tip:string}
 export type CoreDayPlan={day:number;restDay:boolean;title:string;subtitle:string;items:(CoreItem&{seconds:number})[];restSeconds:number;totalSeconds:number}
@@ -27,6 +27,12 @@ const LIB:Record<string,CoreItem>={
   bridgeMarch:{id:'bridge-march',name:'Cầu mông nhấc chân luân phiên',pose:'glute-bridge',area:'Lưng',baseSeconds:20,tip:'Giữ hông ngang khi lần lượt nhấc một chân thật thấp; nếu khó hãy đổi sang cầu mông thường.'},
   proneW:{id:'prone-w',name:'Nằm sấp siết bả vai chữ W',pose:'prone-w',area:'Lưng',baseSeconds:20,tip:'Nằm sấp, gập khuỷu thành chữ W, nhấc tay/ngực rất nhẹ và kéo hai bả vai về nhau; không ngửa cổ.'},
   proneLift:{id:'prone-lift',name:'Nằm sấp nâng ngực thấp',pose:'prone-lift',area:'Lưng',baseSeconds:18,tip:'Tay xuôi thân, chỉ nhấc ngực rất nhẹ bằng cơ lưng, mắt nhìn xuống; dừng nếu đau thắt lưng.'},
+
+  plankTap:{id:'plank-tap',name:'Plank chống gối chạm vai',pose:'straight-knee',area:'Bụng',baseSeconds:25,tip:'Giữ hông cân bằng, nhấc lần lượt một tay chạm vai bên kia; giảm tốc nếu thân xoay.'},
+  deadBugLong:{id:'dead-bug-long',name:'Dead bug duỗi chân thấp có kiểm soát',pose:'dead-bug',area:'Bụng',baseSeconds:27,tip:'Duỗi chân thấp trong biên độ lưng vẫn sát sàn; nếu bị ưỡn lưng, giữ chân cao hơn.'},
+  proneWHold:{id:'prone-w-hold',name:'Siết bả vai chữ W giữ 3 nhịp',pose:'prone-w',area:'Lưng',baseSeconds:24,tip:'Nằm sấp, khuỷu hình chữ W; nhấc tay/ngực rất nhẹ và giữ 3 nhịp, không ngửa cổ.'},
+  sideLeftFull:{id:'side-left-full',name:'Plank nghiêng trái chân thẳng',pose:'side-full-left',area:'Eo',baseSeconds:20,tip:'Tỳ cẳng tay trái và mép ngoài bàn chân trái, giữ thân thẳng; nếu khó, hạ gối.'},
+  sideRightFull:{id:'side-right-full',name:'Plank nghiêng phải chân thẳng',pose:'side-full-right',area:'Eo',baseSeconds:20,tip:'Tỳ cẳng tay phải và mép ngoài bàn chân phải, giữ thân thẳng; nếu khó, hạ gối.'},
   cobra:{id:'cobra',name:'Giãn nhẹ kiểu rắn hổ mang',pose:'cobra',area:'Thả lỏng',baseSeconds:22,tip:'Chống tay nâng ngực trong biên độ dễ chịu; không ép lưng hoặc nín thở.'}
 }
 
@@ -52,6 +58,27 @@ const FINISHERS:readonly (readonly string[])[]=[
   ['reverseSlow','heelSlow','bridge']
 ]
 
+
+const NEXT_TEMPLATES:readonly (readonly string[])[]=[
+  ['deadBugHold','sideLeftFull','birdDogHold','plank','sideRightFull','bridgeMarch','heelSlow','proneWHold'],
+  ['reverseSlow','sideRightPulse','proneW','plankTap','sideLeftPulse','birdDogTouch','deadBugLong','bridgeHold'],
+  ['deadBugLong','sideLeft','proneLift','plank','sideRight','bridgeMarch','heelSlow','birdDogHold'],
+  ['plankTap','sideRightFull','birdDogHold','reverseSlow','sideLeftFull','proneWHold','heel','bridgeMarch'],
+  ['reverse','sideLeftPulse','proneWHold','deadBugLong','sideRightPulse','bridgeHold','heelSlow','birdDogTouch'],
+  ['deadBugHold','sideRight','bridgeMarch','plank','sideLeft','proneW','heel','birdDogHold'],
+  ['plankTap','sideLeftFull','birdDogTouch','reverse','sideRightFull','proneLift','heelSlow','bridge'],
+  ['deadBugLong','sideRightPulse','proneW','straightKnee','sideLeftPulse','bridgeMarch','heel','birdDogHold'],
+  ['reverseSlow','sideLeftFull','proneWHold','plank','sideRightFull','birdDogTouch','heelSlow','bridgeHold'],
+  ['plankTap','sideRight','birdDogHold','deadBugLong','sideLeft','proneLift','heel','bridgeMarch']
+]
+const NEXT_FINISHERS:readonly (readonly string[])[]=[
+  ['plankTap','heelSlow','birdDogHold'],
+  ['reverse','heel','bridgeMarch'],
+  ['deadBugLong','heelSlow','proneW'],
+  ['plank','heel','bridgeHold'],
+  ['reverseSlow','heelSlow','birdDogTouch']
+]
+
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n))
 function profileFactor(profile:UserProfile){
   const plank=profile.benchmarks?.plank
@@ -60,28 +87,40 @@ function profileFactor(profile:UserProfile){
 }
 
 export function buildCoreDay(day:number,profile:UserProfile,progress:CoreProgress):CoreDayPlan{
-  const safeDay=clamp(Math.round(day),1,30),cycle=Math.min(4,Math.floor((safeDay-1)/6)),slot=(safeDay-1)%6
+  const safeDay=clamp(Math.round(day),1,60),stageTwo=safeDay>30
+  const stageDay=stageTwo?safeDay-30:safeDay
+  const cycle=Math.min(4,Math.floor((stageDay-1)/6)),slot=(stageDay-1)%6
   if(slot===5)return {day:safeDay,restDay:true,title:'Buổi hồi phục',subtitle:'Đi bộ nhẹ và để cơ bụng, eo, lưng hồi phục. Không cần tập bù.',items:[],restSeconds:0,totalSeconds:0}
   const index=cycle*5+slot
-  const template=TEMPLATES[index%TEMPLATES.length]
+  const template=(stageTwo?NEXT_TEMPLATES:TEMPLATES)[index%10]
   const hasBackConcern=(profile.injuries??[]).some(x=>/lưng|back|cột sống|thắt lưng/i.test(x))
-  const advancedPlank=(profile.benchmarks?.plank??0)>=30&&cycle>=2&&progress.difficultyScale>=.82
+  const advancedPlank=(profile.benchmarks?.plank??0)>=30&&(cycle>=2||stageTwo)&&progress.difficultyScale>=.82
+  const fullSidePlank=stageTwo&&(profile.benchmarks?.plank??0)>=40&&progress.difficultyScale>=.85&&!hasBackConcern
   const factor=clamp(profileFactor(profile)*(progress.difficultyScale||1),.65,1.1)
-  const keys=[...template,...FINISHERS[(index+cycle)%FINISHERS.length],'cobra']
+  const keys=[...template,...(stageTwo?NEXT_FINISHERS:FINISHERS)[(index+cycle)%5],'cobra']
   const items=keys.map(key=>{
     let id=key
     if(id==='knee'&&advancedPlank)id='plank'
+    if(id==='sideLeftFull'&&!fullSidePlank)id='sideLeft'
+    if(id==='sideRightFull'&&!fullSidePlank)id='sideRight'
     if(hasBackConcern){
-      if(id==='proneW'||id==='proneLift')id='birdDog'
+      if(id==='proneW'||id==='proneWHold'||id==='proneLift')id='birdDog'
       if(id==='bridgeMarch')id='bridge'
       if(id==='reverse'||id==='reverseSlow')id='deadBug'
     }
-    const base=LIB[id],add=cycle*2+(slot>=3?2:0)
-    const seconds=clamp(Math.round((base.baseSeconds+add)*factor/5)*5,10,35)
+    const base=LIB[id],add=cycle*2+(slot>=3?2:0)+(stageTwo?4:0)
+    const maximum=stageTwo?base.pose==='side-full-left'||base.pose==='side-full-right'?30:base.pose==='prone-lift'?25:40:35
+    const seconds=clamp(Math.round((base.baseSeconds+add)*factor/5)*5,10,maximum)
     return {...base,seconds}
   })
-  const restSeconds=clamp(22-cycle,18,22)
+  const restSeconds=stageTwo?22:clamp(22-cycle,18,22)
   const totalSeconds=3+items.reduce((sum,item)=>sum+item.seconds,0)+restSeconds*Math.max(0,items.length-1)
-  const titles=['Nền tảng ba vùng','Phối hợp ổn định','Kiểm soát hai bên','Sức bền thân giữa','Củng cố toàn diện']
-  return {day:safeDay,restDay:false,title:titles[cycle],subtitle:'Bụng + Eo trái/phải + Lưng trong cùng buổi · luân phiên 10 mẫu · tối đa 35 giây/bài',items,restSeconds,totalSeconds}
+  const titles=stageTwo
+    ?['Vững thân giữa','Chống xoay và giữ thăng bằng','Củng cố lưng và hông','Tăng kiểm soát hai bên','Duy trì sức bền ba vùng']
+    :['Nền tảng ba vùng','Phối hợp ổn định','Kiểm soát hai bên','Sức bền thân giữa','Củng cố toàn diện']
+  return {
+    day:safeDay,restDay:false,title:titles[cycle],
+    subtitle:stageTwo?'Giai đoạn 2 · Bụng + eo trái/phải + lưng · biến thể khó hơn nhưng luôn tùy sức':'Bụng + Eo trái/phải + Lưng trong cùng buổi · luân phiên 10 mẫu · tối đa 35 giây/bài',
+    items,restSeconds,totalSeconds
+  }
 }
