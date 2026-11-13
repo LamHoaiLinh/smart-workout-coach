@@ -11,3 +11,28 @@
 .core-prone-pose svg{display:block;width:100%;height:100%}
 .core-hero-pose .core-prone-pose,.core-pose-large .core-prone-pose,.core-rest-screen .core-prone-pose{max-width:440px;margin:0 auto}
 .core-rest-screen .core-prone-pose{max-width:320px}
+
+/* Giai đoạn Core thứ hai: nhìn trước chương trình, nhưng khóa chặng chưa đạt. */
+.core-stage-header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:18px 2px 10px;color:var(--ink)}
+.core-stage-header b{font-size:14px}.core-stage-header span{font-size:11px;color:var(--muted)}
+.core-stage-two{margin-top:18px;border:1px solid var(--line);border-radius:22px;background:var(--panel);overflow:hidden}
+.core-stage-two>summary{cursor:pointer;list-style:none;padding:18px 15px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--ink)}
+.core-stage-two>summary::-webkit-details-marker{display:none}
+.core-stage-two>summary>div{display:grid;gap:5px;min-width:0}
+.core-stage-two>summary b{font-size:14px}
+.core-stage-two>summary span{font-size:11px;color:var(--muted)}
+.core-stage-two>summary strong{font-size:10px;white-space:nowrap;color:var(--brand2)}
+.core-stage-two.stage-locked>summary{background:color-mix(in srgb,var(--muted) 9%,var(--panel))}
+.core-stage-two.stage-locked>summary strong{color:var(--muted)}
+.core-stage-two-content{padding:12px 14px 18px;border-top:1px solid var(--line)}
+.core-stage-two-content>p{font-size:12px;margin:0 2px 14px;line-height:1.5}
+.core-stage-two .core-day-card.core-locked{opacity:.46;filter:grayscale(.8)}
+.core-stage-two .core-day-card:disabled{cursor:not-allowed}
+.core-stage-two.stage-unlocked{border-color:color-mix(in srgb,var(--brand2) 42%,var(--line))}
+.core-complete-note{margin-top:18px}
+.core-side-full-pose{width:100%;aspect-ratio:1/1;background:#eef4ef;border-radius:18px;overflow:hidden}
+.core-side-full-pose svg{display:block;width:100%;height:100%}
+.core-side-full-pose.mirror{transform:scaleX(-1)}
+.core-pose-large .core-side-full-pose,.core-rest-screen .core-side-full-pose{max-width:440px;margin:0 auto}
+.core-rest-screen .core-side-full-pose{max-width:320px}
+@media(max-width:520px){.core-stage-two>summary{padding:16px 12px}.core-stage-two-content{padding:12px}.core-stage-two>summary b{font-size:13px}}
