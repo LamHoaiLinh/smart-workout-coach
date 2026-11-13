@@ -5,3 +5,9 @@
 .core-thumb .core-pose-img{border-radius:12px}.core-hero-pose .core-pose-img,.core-pose-large .core-pose-img,.core-rest-screen .core-pose-img{border-radius:18px}
 
 .core-pose-large .core-pose-img{max-width:440px;margin:0 auto}.core-rest-screen .core-pose-img{max-width:320px;margin:0 auto}
+
+/* Three-area core workouts: vector artwork for prone upper/lower-back moves. */
+.core-prone-pose{width:100%;aspect-ratio:1/1;background:#eef4ef;border-radius:18px;display:grid;place-items:center;overflow:hidden}
+.core-prone-pose svg{display:block;width:100%;height:100%}
+.core-hero-pose .core-prone-pose,.core-pose-large .core-prone-pose,.core-rest-screen .core-prone-pose{max-width:440px;margin:0 auto}
+.core-rest-screen .core-prone-pose{max-width:320px}
